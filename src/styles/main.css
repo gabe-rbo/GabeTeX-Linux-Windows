@@ -1,0 +1,3 @@
+/* Placeholder: the UI agent reproduces the macOS 26 Liquid Glass look here. */
+:root { --accent: #0a84ff; color-scheme: light dark; }
+html, body { margin: 0; height: 100%; font: 13px system-ui, -apple-system, "Segoe UI", sans-serif; }

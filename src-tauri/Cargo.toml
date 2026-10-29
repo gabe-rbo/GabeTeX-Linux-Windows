@@ -1,0 +1,27 @@
+[package]
+name = "gabetex"
+version = "1.0.0"
+description = "GabeTeX for Linux and Windows"
+edition = "2021"
+license = "MIT"
+rust-version = "1.77"
+
+[lib]
+name = "gabetex_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"
+strip = true
+panic = "abort"
