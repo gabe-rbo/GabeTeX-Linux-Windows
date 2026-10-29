@@ -1,0 +1,335 @@
+/* GabeTeX editor — colours from Sources/EditorKit/Theme.swift (Light/Dark via prefers-color-scheme).
+   Overridable from the shell: --gx-code-font, --gx-ui-font, --gx-accent. */
+
+:root {
+  --tx-cmd: #7a3e9d;
+  --tx-struct: #1d5fc2;
+  --tx-env: #0b7a75;
+  --tx-math: #2e7d32;
+  --tx-mcmd: #1f6b2e;
+  --tx-mdelim: #3c8d40;
+  --tx-ref: #4a4fc4;
+  --tx-comment: rgba(0, 0, 0, 0.5);
+  --tx-magic: #5f6b7a;
+  --tx-brace: rgba(0, 0, 0, 0.26);
+  --tx-special: #a8445a;
+  --tx-verb: #a85a00;
+
+  --gx-ed-text: #000;
+  --gx-ed-bg: #fff;
+  --gx-ed-secondary: rgba(0, 0, 0, 0.5);
+  --gx-ed-tertiary: rgba(0, 0, 0, 0.26);
+  --gx-ed-quaternary: rgba(0, 0, 0, 0.1);
+  --gx-ed-accent: var(--gx-accent, #007aff);
+  --gx-ed-current-line: rgba(0, 0, 0, 0.04);
+  --gx-ed-hairline: rgba(0, 0, 0, 0.06);
+  --gx-ed-selection: #b4d7ff;
+  --gx-ed-selection-inactive: #dcdcdc;
+  --gx-ed-snippet: rgba(0, 122, 255, 0.14);
+  --gx-ed-flash: rgba(0, 122, 255, 0.26);
+  --gx-ed-block-caret: rgba(0, 122, 255, 0.4);
+  --gx-ed-red: #ff3b30;
+  --gx-ed-orange: #ff9500;
+  --gx-ed-gray: #8e8e93;
+  --gx-ed-glass: rgba(250, 250, 252, 0.9);
+  --gx-ed-glass-border: rgba(0, 0, 0, 0.1);
+  --gx-ed-glass-shadow: 0 10px 30px rgba(0, 0, 0, 0.16), 0 1px 3px rgba(0, 0, 0, 0.1);
+  --gx-ed-field: rgba(0, 0, 0, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --tx-cmd: #c79bea;
+    --tx-struct: #6eb2ff;
+    --tx-env: #5fd3c4;
+    --tx-math: #93d08a;
+    --tx-mcmd: #7cc98b;
+    --tx-mdelim: #a6db9c;
+    --tx-ref: #a7abff;
+    --tx-comment: rgba(255, 255, 255, 0.55);
+    --tx-magic: #9aa7b8;
+    --tx-brace: rgba(255, 255, 255, 0.25);
+    --tx-special: #f0919f;
+    --tx-verb: #f5b36b;
+
+    --gx-ed-text: rgba(255, 255, 255, 0.92);
+    --gx-ed-bg: #1e1e1e;
+    --gx-ed-secondary: rgba(255, 255, 255, 0.55);
+    --gx-ed-tertiary: rgba(255, 255, 255, 0.25);
+    --gx-ed-quaternary: rgba(255, 255, 255, 0.1);
+    --gx-ed-accent: var(--gx-accent, #0a84ff);
+    --gx-ed-current-line: rgba(255, 255, 255, 0.055);
+    --gx-ed-hairline: rgba(255, 255, 255, 0.06);
+    --gx-ed-selection: #3f638b;
+    --gx-ed-selection-inactive: #464646;
+    --gx-ed-snippet: rgba(10, 132, 255, 0.22);
+    --gx-ed-flash: rgba(10, 132, 255, 0.36);
+    --gx-ed-block-caret: rgba(10, 132, 255, 0.55);
+    --gx-ed-red: #ff453a;
+    --gx-ed-orange: #ff9f0a;
+    --gx-ed-gray: #98989d;
+    --gx-ed-glass: rgba(44, 44, 46, 0.9);
+    --gx-ed-glass-border: rgba(255, 255, 255, 0.12);
+    --gx-ed-glass-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
+    --gx-ed-field: rgba(255, 255, 255, 0.08);
+  }
+}
+
+/* MARK: Editor */
+
+.cm-editor.gx-editor {
+  --gx-font-size: 13px;
+  --gx-line: calc(var(--gx-font-size) * 1.45);
+  height: 100%;
+  color-scheme: light dark;
+  color: var(--gx-ed-text);
+  background: var(--gx-ed-bg);
+  font-size: var(--gx-font-size);
+}
+.cm-editor.gx-editor.cm-focused { outline: none; }
+.cm-editor.gx-editor .cm-scroller {
+  font-family: var(--gx-code-font, "JetBrains Mono", "Cascadia Code", "DejaVu Sans Mono", monospace);
+  line-height: 1.45;
+  font-variant-ligatures: none;
+}
+.cm-editor.gx-editor .cm-content { padding: 8px 0 40vh; caret-color: var(--gx-ed-accent); }
+.cm-editor.gx-editor .cm-line { padding: 0 12px 0 8px; }
+.cm-editor.gx-editor .cm-activeLine { background: var(--gx-ed-current-line); }
+.cm-editor.gx-editor .cm-cursor, .cm-editor.gx-editor .cm-dropCursor {
+  border-left: 2px solid var(--gx-ed-accent);
+  margin-left: -1px;
+}
+.cm-editor.gx-editor .cm-fat-cursor { background: var(--gx-ed-block-caret) !important; border: none; }
+.cm-editor.gx-editor:not(.cm-focused) .cm-fat-cursor { background: none !important; outline: 1px solid var(--gx-ed-block-caret); }
+.cm-editor.gx-editor > .cm-scroller > .cm-selectionLayer .cm-selectionBackground { background: var(--gx-ed-selection-inactive); }
+.cm-editor.gx-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground { background: var(--gx-ed-selection); }
+.cm-editor.gx-editor .cm-content ::selection { background: transparent; }
+.cm-editor.gx-editor .cm-specialChar { color: var(--gx-ed-red); }
+
+/* MARK: Syntax */
+
+.cm-editor.gx-editor .tx-cmd { color: var(--tx-cmd); }
+.cm-editor.gx-editor .tx-struct { color: var(--tx-struct); }
+.cm-editor.gx-editor .tx-env { color: var(--tx-env); }
+.cm-editor.gx-editor .tx-math { color: var(--tx-math); }
+.cm-editor.gx-editor .tx-mcmd { color: var(--tx-mcmd); }
+.cm-editor.gx-editor .tx-mdelim { color: var(--tx-mdelim); }
+.cm-editor.gx-editor .tx-ref { color: var(--tx-ref); }
+.cm-editor.gx-editor .tx-comment { color: var(--tx-comment); }
+.cm-editor.gx-editor .tx-magic { color: var(--tx-magic); }
+.cm-editor.gx-editor .tx-brace, .cm-editor.gx-editor .tx-bracket { color: var(--tx-brace); }
+.cm-editor.gx-editor .tx-special { color: var(--tx-special); }
+.cm-editor.gx-editor .tx-verb { color: var(--tx-verb); }
+
+/* MARK: Gutter */
+
+.cm-editor.gx-editor .cm-gutters {
+  background: var(--gx-ed-bg);
+  color: var(--gx-ed-tertiary);
+  border-right: 1px solid var(--gx-ed-hairline);
+  font-family: var(--gx-ui-font, "Inter", "Segoe UI Variable", "Segoe UI", Cantarell, "Noto Sans", system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+.cm-editor.gx-editor .cm-gutterElement { line-height: var(--gx-line); }
+.cm-editor.gx-editor .cm-lineNumbers .cm-gutterElement {
+  font-size: max(9px, calc(var(--gx-font-size) - 2px));
+  padding: 0 10px 0 0;
+  min-width: 3ch;
+  cursor: default;
+}
+.cm-editor.gx-editor .cm-activeLineGutter { background: var(--gx-ed-current-line); }
+.cm-editor.gx-editor .cm-lineNumbers .cm-activeLineGutter { color: var(--gx-ed-secondary); font-weight: 600; }
+.cm-editor.gx-editor .gx-diag-gutter .cm-gutterElement {
+  width: calc(var(--gx-font-size) + 2px);
+  padding-left: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gx-marker {
+  display: inline-flex;
+  font-size: max(9px, calc(var(--gx-font-size) - 2.5px));
+  cursor: pointer;
+  --gx-icon-fg: #fff;
+}
+.gx-marker-error { color: var(--gx-ed-red); }
+.gx-marker-warning { color: var(--gx-ed-orange); --gx-icon-fg: #fff; }
+.gx-marker-info { color: var(--gx-ed-gray); }
+.cm-editor.gx-editor .gx-diag-gutter .gx-marker-info { opacity: 0.75; }
+
+/* MARK: Diagnostics, snippets, reveal */
+
+.cm-editor.gx-editor .gx-diag {
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-skip-ink: none;
+}
+.cm-editor.gx-editor .gx-diag-error { text-decoration-style: wavy; text-decoration-color: var(--gx-ed-red); }
+.cm-editor.gx-editor .gx-diag-warning { text-decoration-style: wavy; text-decoration-color: var(--gx-ed-orange); }
+.cm-editor.gx-editor .gx-diag-info { text-decoration-style: dotted; text-decoration-color: var(--gx-ed-gray); text-decoration-thickness: 1.5px; }
+
+.cm-editor.gx-editor .gx-snippet-stop { background: var(--gx-ed-snippet); border-radius: 3px; }
+
+@keyframes gx-flash {
+  0%, 21% { background-color: var(--gx-ed-flash); box-shadow: -3px 0 0 var(--gx-ed-flash), 3px 0 0 var(--gx-ed-flash); }
+  100% { background-color: transparent; box-shadow: -3px 0 0 transparent, 3px 0 0 transparent; }
+}
+.cm-editor.gx-editor .gx-flash {
+  padding: 0.14em 0;
+  border-radius: 4px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  background-color: var(--gx-ed-flash);
+  box-shadow: -3px 0 0 var(--gx-ed-flash), 3px 0 0 var(--gx-ed-flash);
+  animation: gx-flash 1.2s cubic-bezier(0.45, 0, 0.55, 1) forwards;
+}
+.cm-editor.gx-editor.gx-reduce-motion .gx-flash { animation: none; }
+@media (prefers-reduced-motion: reduce) { .cm-editor.gx-editor .gx-flash { animation: none; } }
+
+/* MARK: Search panel */
+
+.cm-editor.gx-editor .cm-panels { background: var(--gx-ed-bg); color: var(--gx-ed-text); }
+.cm-editor.gx-editor .cm-panels.cm-panels-top { border-bottom: 1px solid var(--gx-ed-hairline); }
+.cm-editor.gx-editor .cm-panels.cm-panels-bottom { border-top: 1px solid var(--gx-ed-hairline); }
+.cm-editor.gx-editor .cm-panel.cm-search {
+  padding: 6px 30px 6px 10px;
+  font: 12px var(--gx-ui-font, "Inter", "Segoe UI Variable", "Segoe UI", Cantarell, "Noto Sans", system-ui, sans-serif);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+.cm-editor.gx-editor .cm-panel.cm-search br { flex-basis: 100%; content: ""; }
+.cm-editor.gx-editor .cm-panel.cm-search .cm-textfield {
+  font: inherit;
+  margin: 0;
+  padding: 3px 8px;
+  min-width: 180px;
+  color: inherit;
+  background: var(--gx-ed-field);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  outline: none;
+}
+.cm-editor.gx-editor .cm-panel.cm-search .cm-textfield:focus { border-color: var(--gx-ed-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--gx-ed-accent) 25%, transparent); }
+.cm-editor.gx-editor .cm-panel.cm-search .cm-button {
+  font: inherit;
+  margin: 0;
+  padding: 2px 10px;
+  color: inherit;
+  background: var(--gx-ed-field);
+  background-image: none;
+  border: none;
+  border-radius: 999px;
+  cursor: default;
+}
+.cm-editor.gx-editor .cm-panel.cm-search .cm-button:hover { background: var(--gx-ed-quaternary); }
+.cm-editor.gx-editor .cm-panel.cm-search input[type=checkbox] { accent-color: var(--gx-ed-accent); margin: 0; }
+.cm-editor.gx-editor .cm-panel.cm-search label { display: inline-flex; align-items: center; gap: 3px; color: var(--gx-ed-secondary); font-size: 11px; }
+.cm-editor.gx-editor .cm-panel.cm-search [name=close] {
+  position: absolute; top: 6px; right: 8px; width: 18px; height: 18px; padding: 0;
+  border: none; border-radius: 50%; background: var(--gx-ed-field); color: var(--gx-ed-secondary); font-size: 14px; line-height: 18px;
+}
+.cm-editor.gx-editor .cm-searchMatch { background: rgba(255, 214, 10, 0.35); border-radius: 2px; }
+.cm-editor.gx-editor .cm-searchMatch.cm-searchMatch-selected { background: rgba(255, 214, 10, 0.75); }
+.cm-editor.gx-editor .cm-vim-panel { font-family: var(--gx-code-font, "JetBrains Mono", "Cascadia Code", "DejaVu Sans Mono", monospace); font-size: 12px; padding: 2px 10px; }
+.cm-editor.gx-editor .cm-vim-panel input { color: inherit; background: transparent; border: none; outline: none; font: inherit; }
+
+/* MARK: Glass popups (completion list, diagnostic popovers) */
+
+.gx-completion.cm-tooltip.cm-tooltip,
+.cm-tooltip-hover.cm-tooltip.cm-tooltip,
+.gx-popover {
+  color: var(--gx-ed-text);
+  background: var(--gx-ed-glass);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 0.5px solid var(--gx-ed-glass-border);
+  box-shadow: var(--gx-ed-glass-shadow);
+  font-family: var(--gx-ui-font, "Inter", "Segoe UI Variable", "Segoe UI", Cantarell, "Noto Sans", system-ui, sans-serif);
+}
+.gx-completion.cm-tooltip.cm-tooltip { border-radius: 12px; overflow: hidden; min-width: 240px; max-width: 620px; }
+.cm-tooltip-hover.cm-tooltip.cm-tooltip, .gx-popover { border-radius: 10px; }
+.gx-popover { position: fixed; z-index: 1000; }
+
+.gx-completion-scroll { overflow-y: auto; padding: 6px; box-sizing: border-box; overscroll-behavior: contain; }
+.gx-completion-row {
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px;
+  border-radius: 7px;
+  white-space: nowrap;
+  cursor: default;
+}
+.gx-completion-row.gx-selected { background: var(--gx-ed-accent); color: #fff; }
+.gx-badge {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font: 700 10px/1 ui-rounded, var(--gx-ui-font, "Inter", "Segoe UI Variable", "Segoe UI", Cantarell, "Noto Sans", system-ui, sans-serif);
+}
+.gx-completion-label {
+  flex: 0 1 auto;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font: 12px var(--gx-code-font, "JetBrains Mono", "Cascadia Code", "DejaVu Sans Mono", monospace);
+}
+.gx-completion-label b { font-weight: 650; }
+.gx-completion-detail {
+  margin-left: auto;
+  padding-left: 10px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  color: var(--gx-ed-secondary);
+}
+.gx-selected .gx-completion-detail { color: rgba(255, 255, 255, 0.85); }
+.tx-k-command { background: var(--tx-cmd); }
+.tx-k-environment { background: var(--tx-env); }
+.tx-k-label { background: var(--tx-ref); }
+.tx-k-citation { background: var(--tx-verb); }
+.tx-k-file { background: #8e8e93; }
+.tx-k-package { background: var(--tx-struct); }
+.tx-k-snippet { background: var(--tx-math); }
+@media (prefers-color-scheme: dark) {
+  .gx-badge { color: #1c1c1e; }
+  .gx-selected .gx-badge { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35); }
+}
+
+.gx-diag-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+  min-width: 220px;
+  max-width: 480px;
+  box-sizing: border-box;
+}
+.gx-diag-row { display: flex; align-items: baseline; gap: 8px; }
+.gx-diag-icon { flex: none; font-size: 12px; position: relative; top: 2px; --gx-icon-fg: #fff; }
+.gx-diag-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.gx-diag-message { font-size: 12px; font-weight: 500; user-select: text; overflow-wrap: anywhere; }
+.gx-diag-detail {
+  font: 11px var(--gx-code-font, "JetBrains Mono", "Cascadia Code", "DejaVu Sans Mono", monospace);
+  color: var(--gx-ed-secondary);
+  white-space: pre-wrap;
+  user-select: text;
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.gx-diag-source { font-size: 10px; color: var(--gx-ed-tertiary); }
+.gx-diag-more { font-size: 11px; color: var(--gx-ed-secondary); }
+.gx-marker-badbox { color: var(--gx-ed-gray); }

@@ -525,3 +525,13 @@ pub async fn add_recent_project(path: String, name: Option<String>) -> CmdResult
 pub async fn set_project_label(path: String, label: Option<String>) -> CmdResult<Vec<RecentProject>> {
     blocking(move || settings::set_project_label(&path, label.as_deref())).await
 }
+
+/// The bytes of a PDF for the preview, sent raw (no JSON array) so large documents stay cheap to transfer.
+#[tauri::command]
+pub async fn read_pdf(path: String) -> CmdResult<tauri::ipc::Response> {
+    blocking(move || {
+        let bytes = std::fs::read(&path).map_err(|e| format!("could not read {path}: {e}"))?;
+        Ok(tauri::ipc::Response::new(bytes))
+    })
+    .await
+}

@@ -30,6 +30,7 @@ pub fn run() {
             commands::recent_projects,
             commands::add_recent_project,
             commands::set_project_label,
+            commands::read_pdf,
         ])
         .build(tauri::generate_context!())
         .expect("error while building GabeTeX");

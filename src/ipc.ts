@@ -89,3 +89,6 @@ export const setProjectLabel = (path: string, label?: string) =>
 /** Subscribe to `fs-changed` (emitted by the Rust watcher after `watchProject`). */
 export const onFsChanged = (cb: (e: FsChangedEvent) => void): Promise<UnlistenFn> =>
   listen<FsChangedEvent>("fs-changed", (ev) => cb(ev.payload));
+
+/** The raw bytes of a PDF (binary IPC response, no JSON array). */
+export const readPdf = (path: string) => invoke<ArrayBuffer>("read_pdf", { path });

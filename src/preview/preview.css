@@ -1,0 +1,195 @@
+/* PDF preview: PDFKit-like page stack, glass zoom capsule, empty state, forward-search flash.
+   Pages stay white in Dark mode (like the Mac app); only the backdrop follows the theme. */
+
+.pv-root {
+  /* GabePDFView.applyBackground: the window background, 7 % darker. */
+  --pv-bg: #dcdcdc;
+  --pv-page-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.16), 0 3px 10px rgba(0, 0, 0, 0.06);
+  --pv-accent: var(--accent, #0a84ff);
+  --pv-flash-fill: color-mix(in srgb, var(--pv-accent) 26%, transparent);
+  --pv-flash-stroke: color-mix(in srgb, var(--pv-accent) 70%, transparent);
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--pv-bg);
+  font-family: var(--font-ui, "Inter", "Segoe UI Variable", "Segoe UI", Cantarell, "Noto Sans", system-ui, sans-serif);
+  color: var(--text, #1d1d1f);
+}
+@media (prefers-color-scheme: dark) {
+  .pv-root {
+    --pv-bg: #2f2f2f;
+    --pv-page-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.45), 0 4px 14px rgba(0, 0, 0, 0.28);
+  }
+}
+
+.pv-scroll {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  overflow-anchor: none;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  outline: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.pv-doc { position: relative; }
+
+.pv-page {
+  position: absolute;
+  background: #fff;
+  box-shadow: var(--pv-page-shadow);
+  contain: layout size style;
+  overflow: hidden;
+  color-scheme: only light;
+}
+.pv-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Forward-search flash (PDFHighlightOverlayView): accent 26 % fill, 70 % hairline, 0.15 s in, 0.5 s out. */
+.pv-flash {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  background: var(--pv-flash-fill);
+  box-shadow: inset 0 0 0 1px var(--pv-flash-stroke);
+  animation: pv-flash-in 150ms ease-out;
+}
+.pv-flash-static { animation: none; }
+.pv-flash-out { opacity: 0; transition: opacity 500ms ease-in; }
+@keyframes pv-flash-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* Zoom capsule (PDFPreviewControls), floating bottom centre over the PDF. */
+.pv-controls {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 5px;
+  border-radius: 999px;
+  background: var(--glass-bg, rgba(255, 255, 255, 0.64));
+  -webkit-backdrop-filter: var(--glass-blur, blur(22px) saturate(180%));
+  backdrop-filter: var(--glass-blur, blur(22px) saturate(180%));
+  border: 0.5px solid var(--glass-border, rgba(0, 0, 0, 0.075));
+  box-shadow: var(--glass-rim, inset 0 1px 0 rgba(255, 255, 255, 0.95)), var(--glass-shadow, 0 0.5px 1px rgba(0, 0, 0, 0.08), 0 3px 12px rgba(0, 0, 0, 0.07));
+  transform: translateX(-50%);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 250ms var(--ease, ease), visibility 0s linear 250ms;
+  -webkit-user-select: none;
+  user-select: none;
+  white-space: nowrap;
+}
+.pv-has-doc .pv-controls { opacity: 1; visibility: visible; transition: opacity 250ms var(--ease, ease); }
+
+.pv-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text, #1d1d1f);
+  font: inherit;
+  cursor: default;
+  transition: background-color 120ms ease;
+}
+.pv-btn:hover:not(:disabled) { background: color-mix(in srgb, currentColor 8%, transparent); }
+.pv-btn:active:not(:disabled) { background: color-mix(in srgb, currentColor 16%, transparent); }
+.pv-btn:disabled { color: var(--text-3, rgba(60, 60, 67, 0.36)); }
+.pv-btn:focus-visible { outline: 2px solid var(--pv-accent); outline-offset: 1px; }
+.pv-icon { width: 28px; }
+.pv-zoom { min-width: 46px; padding: 0 4px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.pv-sep { width: 1px; height: 16px; margin: 0 6px; background: var(--separator-strong, rgba(0, 0, 0, 0.16)); }
+.pv-pages { padding-right: 10px; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--text-2, rgba(60, 60, 67, 0.66)); }
+
+/* Empty state (PDFPreviewPlaceholder). */
+.pv-placeholder {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-2, rgba(60, 60, 67, 0.66));
+}
+.pv-placeholder[hidden] { display: none; }
+.pv-placeholder svg { margin-bottom: 9px; }
+.pv-placeholder-title { font-size: 17px; font-weight: 500; color: var(--text, #1d1d1f); }
+.pv-placeholder-hint { font-size: 13px; max-width: 360px; }
+
+/* pdf.js text layer (selection / copy), trimmed from pdfjs-dist/web/pdf_viewer.css. */
+.pv-page .textLayer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  text-align: initial;
+  letter-spacing: normal;
+  word-spacing: normal;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  -webkit-user-select: text;
+  user-select: text;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+.pv-page .textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+.pv-page .textLayer > :not(.markedContent),
+.pv-page .textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+.pv-page .textLayer .markedContent { display: contents; }
+.pv-page .textLayer span[role="img"] { -webkit-user-select: none; user-select: none; cursor: default; }
+.pv-page .textLayer ::selection { background: color-mix(in srgb, var(--pv-accent) 30%, transparent); color: transparent; }
+.pv-page .textLayer br::selection { background: transparent; }
+.pv-page .textLayer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: 0;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.pv-page .textLayer.selecting .endOfContent { top: 0; }
+.pv-page [data-main-rotation="90"] { transform: rotate(90deg) translateY(-100%); }
+.pv-page [data-main-rotation="180"] { transform: rotate(180deg) translate(-100%, -100%); }
+.pv-page [data-main-rotation="270"] { transform: rotate(270deg) translateX(-100%); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pv-controls, .pv-has-doc .pv-controls, .pv-btn { transition: none; }
+  .pv-flash { animation: none; }
+}
