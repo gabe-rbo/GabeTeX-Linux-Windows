@@ -1,0 +1,160 @@
+[
+  {
+    "id": "article",
+    "name": "Article",
+    "description": "A simple article in a single file.",
+    "symbol": "doc.text",
+    "engine": "pdflatex",
+    "files": [
+      {
+        "path": "main.tex",
+        "contents": "\\documentclass[11pt]{article}\n\n% \\usepackage[brazilian]{babel}\n\\usepackage[T1]{fontenc}\n\\usepackage{lmodern}\n\\usepackage{amsmath,amssymb}\n\\usepackage{hyperref}\n\n\\title{{{TITLE}}}\n\\author{{{AUTHOR}}}\n\\date{{{DATE}}}\n\n\\begin{document}\n\\maketitle\n\n\\begin{abstract}\nA short summary of the article goes here.\n\\end{abstract}\n\n\\section{Introduction}\nHello, world! Inline mathematics such as $e^{i\\pi} + 1 = 0$ works out of the box.\n\n\\begin{equation}\n  \\int_0^1 x^2\\,dx = \\frac{1}{3}.\n\\end{equation}\n\n\\end{document}"
+      }
+    ],
+    "rootFile": "main.tex",
+    "placeholders": [
+      "TITLE",
+      "AUTHOR",
+      "DATE"
+    ]
+  },
+  {
+    "id": "article-sections",
+    "name": "Article with Sections",
+    "description": "A main file that inputs one file per section, plus a bibliography.",
+    "symbol": "list.bullet.indent",
+    "engine": "pdflatex",
+    "files": [
+      {
+        "path": "main.tex",
+        "contents": "\\documentclass[11pt]{article}\n\n% \\usepackage[brazilian]{babel}\n\\usepackage[T1]{fontenc}\n\\usepackage{lmodern}\n\\usepackage{amsmath,amssymb,amsthm}\n\\usepackage{natbib}\n\\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}\n\\usepackage{cleveref}\n\n\\theoremstyle{plain}\n\\newtheorem{theorem}{Theorem}[section]\n\\newtheorem{lemma}[theorem]{Lemma}\n\\newtheorem{proposition}[theorem]{Proposition}\n\\newtheorem{corollary}[theorem]{Corollary}\n\\theoremstyle{definition}\n\\newtheorem{definition}[theorem]{Definition}\n\\theoremstyle{remark}\n\\newtheorem{remark}[theorem]{Remark}\n\n\\title{{{TITLE}}}\n\\author{{{AUTHOR}}}\n\\date{{{DATE}}}\n\n\\begin{document}\n\\maketitle\n\n\\begin{abstract}\nA short summary of the article goes here.\n\\end{abstract}\n\n\\input{sections/introduction}\n\\input{sections/preliminaries}\n\\input{sections/main-results}\n\\input{sections/conclusion}\n\n\\bibliographystyle{plainnat}\n\\bibliography{references}\n\n\\end{document}"
+      },
+      {
+        "path": "sections/introduction.tex",
+        "contents": "% !TEX root = ../main.tex\n\n\\section{Introduction}\\label{sec:introduction}\n\nWrite the introduction here. The results are stated in \\cref{sec:main-results}, which builds on the definitions of \\cref{sec:preliminaries}. Citations look like \\citet{example} or \\citep{example}."
+      },
+      {
+        "path": "sections/preliminaries.tex",
+        "contents": "% !TEX root = ../main.tex\n\n\\section{Preliminaries}\\label{sec:preliminaries}\n\n\\begin{definition}\\label{def:example}\nLet $X$ be a set. A \\emph{partition} of $X$ is a family of nonempty, pairwise disjoint subsets of $X$ whose union is $X$.\n\\end{definition}\n\n\\begin{remark}\nReplace this with your own notation and definitions.\n\\end{remark}"
+      },
+      {
+        "path": "sections/main-results.tex",
+        "contents": "% !TEX root = ../main.tex\n\n\\section{Main results}\\label{sec:main-results}\n\n\\begin{theorem}\\label{thm:main}\nLet $X$ be a set with a partition $\\mathcal{P}$. Then the relation $x \\sim y$, defined by ``$x$ and $y$ lie in a common part of $\\mathcal{P}$'', is an equivalence relation on $X$, and its classes are exactly the parts of $\\mathcal{P}$.\n\\end{theorem}\n\n\\begin{proof}\nEvery $x \\in X$ lies in exactly one part of $\\mathcal{P}$, which gives reflexivity; symmetry and transitivity are immediate from the definition. Since the parts are disjoint and cover $X$, the classes are exactly the parts.\n\\end{proof}\n\nBy \\cref{def:example} and \\cref{thm:main}, every partition determines an equivalence relation."
+      },
+      {
+        "path": "sections/conclusion.tex",
+        "contents": "% !TEX root = ../main.tex\n\n\\section{Conclusion}\\label{sec:conclusion}\n\nSummarise the contributions of \\cref{thm:main}, then discuss open questions. Background material can be cited with \\citep{example}."
+      },
+      {
+        "path": "references.bib",
+        "contents": "@book{example,\n  author    = {Author, Example},\n  title     = {An Example Reference},\n  publisher = {Example Publisher},\n  year      = {2026}\n}"
+      }
+    ],
+    "rootFile": "main.tex",
+    "placeholders": [
+      "TITLE",
+      "AUTHOR",
+      "DATE"
+    ]
+  },
+  {
+    "id": "thesis",
+    "name": "Thesis",
+    "description": "A book-class thesis with front matter, chapters and biblatex.",
+    "symbol": "book.closed",
+    "engine": "pdflatex",
+    "files": [
+      {
+        "path": "main.tex",
+        "contents": "\\documentclass[12pt,a4paper,oneside]{book}\n\n\\usepackage[T1]{fontenc}\n\\usepackage{lmodern}\n\\usepackage[a4paper,margin=2.5cm]{geometry}\n\\usepackage{amsmath,amssymb,amsthm}\n\\usepackage{graphicx}\n\\usepackage[backend=biber,style=numeric,sorting=nyt]{biblatex}\n\\addbibresource{references.bib}\n\\usepackage[colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue]{hyperref}\n\\usepackage{cleveref}\n% \\usepackage[brazilian]{babel}\n\n\\title{{{TITLE}}}\n\\author{{{AUTHOR}}}\n\\date{{{DATE}}}\n\n\\begin{document}\n\n\\frontmatter\n\\maketitle\n\n\\chapter*{Abstract}\nWrite the abstract of your thesis here.\n\n\\tableofcontents\n\n\\mainmatter\n\\include{chapters/introduction}\n\\include{chapters/background}\n\\include{chapters/conclusion}\n\n\\backmatter\n\\printbibliography[heading=bibintoc]\n\n\\end{document}"
+      },
+      {
+        "path": "chapters/introduction.tex",
+        "contents": "% !TEX root = ../main.tex\n\n\\chapter{Introduction}\\label{chap:introduction}\n\nWrite the introduction here. The background material is in \\cref{chap:background}."
+      },
+      {
+        "path": "chapters/background.tex",
+        "contents": "% !TEX root = ../main.tex\n\n\\chapter{Background}\\label{chap:background}\n\n\\section{Notation}\\label{sec:notation}\n\nDescribe your notation here. Standard facts can be cited, for example \\parencite{example}."
+      },
+      {
+        "path": "chapters/conclusion.tex",
+        "contents": "% !TEX root = ../main.tex\n\n\\chapter{Conclusion}\\label{chap:conclusion}\n\nSummarise your results here."
+      },
+      {
+        "path": "references.bib",
+        "contents": "@book{example,\n  author    = {Author, Example},\n  title     = {An Example Reference},\n  publisher = {Example Publisher},\n  year      = {2026}\n}"
+      },
+      {
+        "path": "figures/README.txt",
+        "contents": "Put the figure files of this thesis in this folder, for example figures/plot.pdf, and include them with\n\\includegraphics[width=0.8\\linewidth]{figures/plot}"
+      }
+    ],
+    "rootFile": "main.tex",
+    "placeholders": [
+      "TITLE",
+      "AUTHOR",
+      "DATE"
+    ]
+  },
+  {
+    "id": "beamer",
+    "name": "Beamer Presentation",
+    "description": "Slides with a title page, blocks and columns.",
+    "symbol": "play.rectangle",
+    "engine": "pdflatex",
+    "files": [
+      {
+        "path": "main.tex",
+        "contents": "\\documentclass[aspectratio=169]{beamer}\n\n\\usetheme{Madrid}\n\\usepackage[T1]{fontenc}\n\\usepackage{lmodern}\n\\usepackage{amsmath,amssymb}\n% \\usepackage[brazilian]{babel}\n\n\\title{{{TITLE}}}\n\\author{{{AUTHOR}}}\n\\date{{{DATE}}}\n\n\\begin{document}\n\n\\begin{frame}\n  \\titlepage\n\\end{frame}\n\n\\begin{frame}{Outline}\n  \\tableofcontents\n\\end{frame}\n\n\\section{Motivation}\n\n\\begin{frame}{Motivation}\n  \\begin{itemize}\n    \\item<1-> The first point, shown immediately.\n    \\item<2-> The second point, shown after a click.\n  \\end{itemize}\n\n  \\begin{block}{Key idea}\n    A short statement of the main idea goes in this block.\n  \\end{block}\n\\end{frame}\n\n\\section{Results}\n\n\\begin{frame}{Two columns}\n  \\begin{columns}[T]\n    \\begin{column}{0.48\\textwidth}\n      Text on the left, with inline mathematics $x^2 + y^2 = r^2$.\n    \\end{column}\n    \\begin{column}{0.48\\textwidth}\n      \\begin{alertblock}{Caution}\n        Text on the right, highlighted as an alert.\n      \\end{alertblock}\n    \\end{column}\n  \\end{columns}\n\\end{frame}\n\n\\begin{frame}{Overlays}\n  Content that appears in steps:\n  \\begin{enumerate}\n    \\item<1-> First step.\n    \\item<2-> Second step.\n  \\end{enumerate}\n  \\pause\n  \\alert{This line appears after a pause.}\n\\end{frame}\n\n\\begin{frame}\n  \\centering\n  \\Huge Thank you!\n\\end{frame}\n\n\\end{document}"
+      }
+    ],
+    "rootFile": "main.tex",
+    "placeholders": [
+      "TITLE",
+      "AUTHOR",
+      "DATE"
+    ]
+  },
+  {
+    "id": "math-notes",
+    "name": "Math Notes",
+    "description": "Theorem environments, macros, a commutative diagram and hyperlinks.",
+    "symbol": "function",
+    "engine": "pdflatex",
+    "files": [
+      {
+        "path": "main.tex",
+        "contents": "\\documentclass[11pt]{amsart}\n\n\\usepackage[T1]{fontenc}\n\\usepackage{lmodern}\n\\usepackage{amssymb,mathtools}\n\\usepackage{tikz-cd}\n\\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}\n\\usepackage[capitalise,nameinlink]{cleveref}\n% \\usepackage[brazilian]{babel}\n\n\\input{macros}\n\n\\theoremstyle{plain}\n\\newtheorem{theorem}{Theorem}[section]\n\\newtheorem{lemma}[theorem]{Lemma}\n\\newtheorem{proposition}[theorem]{Proposition}\n\\newtheorem{corollary}[theorem]{Corollary}\n\\theoremstyle{definition}\n\\newtheorem{definition}[theorem]{Definition}\n\\newtheorem{example}[theorem]{Example}\n\\theoremstyle{remark}\n\\newtheorem{remark}[theorem]{Remark}\n\n\\title{{{TITLE}}}\n\\author{{{AUTHOR}}}\n\\date{{{DATE}}}\n\n\\begin{document}\n\\maketitle\n\n\\begin{abstract}\nA short summary of these notes.\n\\end{abstract}\n\n\\section{Setting}\n\nLet $\\Z$ denote the integers and $\\R$ the real numbers.\n\n\\begin{definition}\\label{def:injective}\nA map $f\\colon X \\to Y$ is \\emph{injective} if $f(x) = f(x')$ implies $x = x'$.\n\\end{definition}\n\n\\section{A sample result}\n\n\\begin{theorem}[Sample]\\label{thm:sample}\nLet $f\\colon X \\to Y$ be a map of sets. If $f$ has a left inverse, then $f$ is injective.\n\\end{theorem}\n\n\\begin{proof}\nLet $g\\colon Y \\to X$ satisfy $g \\circ f = \\id_X$. If $f(x) = f(x')$, then\n\\[\n  x = g\\bigl(f(x)\\bigr) = g\\bigl(f(x')\\bigr) = x'.\n\\]\n\\end{proof}\n\n\\begin{example}\nThe inclusion $\\N \\hookrightarrow \\Z$ is injective.\n\\end{example}\n\n\\section{A commutative diagram}\n\nConsider the square of maps below.\n\n\\[\n\\begin{tikzcd}\n  A \\arrow[r, \"f\"] \\arrow[d, \"g\"'] & B \\arrow[d, \"h\"] \\\\\n  C \\arrow[r, \"k\"'] & D\n\\end{tikzcd}\n\\]\n\n\\end{document}"
+      },
+      {
+        "path": "macros.tex",
+        "contents": "% Number sets\n\\newcommand{\\N}{\\mathbb{N}}\n\\newcommand{\\Z}{\\mathbb{Z}}\n\\newcommand{\\Q}{\\mathbb{Q}}\n\\newcommand{\\R}{\\mathbb{R}}\n\\newcommand{\\C}{\\mathbb{C}}\n\n% Operators, set upright with the right spacing\n\\DeclareMathOperator{\\Hom}{Hom}\n\\DeclareMathOperator{\\id}{id}\n\\DeclareMathOperator{\\im}{im}\n\n% Paired delimiters that resize with \\left and \\right\n\\DeclarePairedDelimiter{\\abs}{\\lvert}{\\rvert}\n\\DeclarePairedDelimiter{\\norm}{\\lVert}{\\rVert}\n\\DeclarePairedDelimiter{\\set}{\\{}{\\}}\n\n% Categories\n\\newcommand{\\cat}[1]{\\mathsf{#1}}"
+      }
+    ],
+    "rootFile": "main.tex",
+    "placeholders": [
+      "TITLE",
+      "AUTHOR",
+      "DATE"
+    ]
+  },
+  {
+    "id": "problem-set",
+    "name": "Problem Set",
+    "description": "Numbered problems and solutions with a running header.",
+    "symbol": "checklist",
+    "engine": "pdflatex",
+    "files": [
+      {
+        "path": "main.tex",
+        "contents": "\\documentclass[11pt]{article}\n\n\\usepackage[T1]{fontenc}\n\\usepackage{lmodern}\n\\usepackage[margin=2.5cm]{geometry}\n\\usepackage{amsmath,amssymb,amsthm}\n\\usepackage{fancyhdr}\n\\usepackage[colorlinks=true,linkcolor=blue]{hyperref}\n% \\usepackage[brazilian]{babel}\n\n\\newcounter{problem}\n\\newenvironment{problem}\n  {\\refstepcounter{problem}\\par\\medskip\\noindent\\textbf{Problem \\theproblem.}\\quad\\ignorespaces}\n  {\\par\\medskip}\n\\newenvironment{solution}\n  {\\par\\medskip\\noindent\\emph{Solution.}\\quad\\ignorespaces}\n  {\\hfill$\\square$\\par\\medskip}\n\n\\pagestyle{fancy}\n\\fancyhf{}\n\\lhead{{{TITLE}}}\n\\rhead{{{AUTHOR}}}\n\\rfoot{\\thepage}\n\n\\title{{{TITLE}}}\n\\author{{{AUTHOR}}}\n\\date{{{DATE}}}\n\n\\begin{document}\n\\maketitle\n\n\\begin{problem}\\label{prob:cyclic}\nShow that every group of prime order is cyclic.\n\\end{problem}\n\n\\begin{solution}\nLet $G$ have prime order $p$ and pick $g \\in G$ with $g \\neq e$. The order of $g$ divides $p$ and is not $1$, so it equals $p$. Hence $\\langle g \\rangle = G$.\n\\end{solution}\n\n\\begin{problem}\\label{prob:sum}\nCompute $\\sum_{k=1}^{n} k$ for every integer $n \\geq 1$.\n\\end{problem}\n\n\\begin{solution}\nThe formula is $\\sum_{k=1}^{n} k = \\dfrac{n(n+1)}{2}$. It holds for $n = 1$, and if it holds for $n$, then adding $n+1$ gives $\\dfrac{n(n+1)}{2} + (n+1) = \\dfrac{(n+1)(n+2)}{2}$, so it holds for $n+1$ as well. Induction finishes the proof.\n\\end{solution}\n\n\\end{document}"
+      }
+    ],
+    "rootFile": "main.tex",
+    "placeholders": [
+      "TITLE",
+      "AUTHOR",
+      "DATE"
+    ]
+  }
+]
