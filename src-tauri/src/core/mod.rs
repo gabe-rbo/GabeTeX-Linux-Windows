@@ -3,6 +3,7 @@
 pub mod compiler;
 pub mod completion;
 pub mod distribution;
+pub mod fileops;
 pub mod log_parser;
 pub mod packages;
 pub mod project_index;

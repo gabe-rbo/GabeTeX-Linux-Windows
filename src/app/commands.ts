@@ -53,11 +53,19 @@ export interface CommandHost {
   setEngine(engine: Engine | undefined): void;
   setMainDocument(): void;
   automaticMainDocument(): void;
+  cleanAuxiliaryFiles(): void;
   showInPDF(): void;
   revealPDF(): void;
   nextIssue(forward: boolean): void;
   welcome(): void;
   openSettings(pane?: string): void;
+  // Separate windows (PDF window, presentation)
+  canDetachPdf(): boolean;
+  isPdfDetached(): boolean;
+  togglePdfWindow(): void;
+  canPresent(): boolean;
+  isPresenting(): boolean;
+  togglePresentation(): void;
 }
 
 export interface Command {
@@ -162,11 +170,15 @@ function catalog(): Command[] {
   c.push(
     make({
       id: "view.togglePreview", title: t("Show or Hide PDF Preview"), category: "view", symbol: "doc.richtext", defaultShortcut: "Ctrl+Alt+P",
-      dynamicTitle: (h) => (h.showPreview() ? t("Hide PDF Preview") : t("Show PDF Preview")), isEnabled: hasProject, run: (h) => h.togglePreview(),
+      dynamicTitle: (h) => (h.isPdfDetached() ? t("Show PDF Window") : h.showPreview() ? t("Hide PDF Preview") : t("Show PDF Preview")), isEnabled: hasProject, run: (h) => h.togglePreview(),
     }),
     make({
-      id: "view.togglePDFWindow", title: t("PDF Only"), category: "view", symbol: "arrow.up.forward.app",
-      dynamicTitle: (h) => (h.isPdfOnly() ? t("Show the editor again") : t("Maximize the PDF preview")), isEnabled: hasProject, isOn: (h) => h.isPdfOnly(), run: (h) => h.togglePdfOnly(),
+      id: "view.togglePDFWindow", title: t("Open or Attach PDF Window"), category: "view", symbol: "arrow.up.forward.app",
+      // Without separate windows (browser mock) this is PDF Only.
+      dynamicTitle: (h) => (h.canDetachPdf()
+        ? (h.isPdfDetached() ? t("Attach PDF to Project Window") : t("Open PDF in Separate Window"))
+        : (h.isPdfOnly() ? t("Show the editor again") : t("Maximize the PDF preview"))),
+      isEnabled: hasProject, isOn: (h) => (h.canDetachPdf() ? h.isPdfDetached() : h.isPdfOnly()), run: (h) => h.togglePdfWindow(),
     }),
     make({
       id: "view.toggleIssues", title: t("Show or Hide Issues"), category: "view", symbol: "exclamationmark.triangle", defaultShortcut: "Ctrl+Shift+M",
@@ -177,6 +189,11 @@ function catalog(): Command[] {
     make({ id: "view.showFiles", title: t("Show Files"), category: "view", symbol: "folder", defaultShortcut: "Ctrl+Alt+1", isEnabled: hasProject, run: (h) => h.showSidebar("files") }),
     make({ id: "view.showOutline", title: t("Show Outline"), category: "view", symbol: "list.bullet.indent", defaultShortcut: "Ctrl+Alt+2", isEnabled: hasProject, run: (h) => h.showSidebar("outline") }),
     make({ id: "view.documentStatistics", title: t("Document Statistics…"), category: "view", symbol: "chart.bar.doc.horizontal", keywords: [t("Word Count"), t("Pages")], isEnabled: hasProject, run: (h) => h.documentStatistics() }),
+    make({
+      id: "view.presentation", title: t("Start Presentation"), category: "view", symbol: "play.rectangle", defaultShortcut: "Ctrl+Alt+Enter",
+      keywords: ["Beamer", t("Slides")], dynamicTitle: (h) => (h.isPresenting() ? t("End Presentation") : t("Start Presentation")),
+      isEnabled: (h) => h.isPresenting() || h.canPresent(), run: (h) => h.togglePresentation(),
+    }),
     make({ id: "view.nextTab", title: t("Show Next Tab"), category: "view", symbol: "arrow.right.square", defaultShortcut: "Ctrl+Tab", isEnabled: (h) => h.tabCount() >= 2, run: (h) => h.cycleTab(1) }),
     make({ id: "view.previousTab", title: t("Show Previous Tab"), category: "view", symbol: "arrow.left.square", defaultShortcut: "Ctrl+Shift+Tab", isEnabled: (h) => h.tabCount() >= 2, run: (h) => h.cycleTab(-1) }),
   );
@@ -201,6 +218,7 @@ function catalog(): Command[] {
     make({ id: "build.setMainDocument", title: t("Set as Main Document"), category: "build", symbol: "star", isEnabled: hasFile, run: (h) => h.setMainDocument() }),
     make({ id: "build.automaticMainDocument", title: t("Use Automatic Main Document"), category: "build", symbol: "star.slash", isEnabled: (h) => h.hasMainOverride(), run: (h) => h.automaticMainDocument() }),
     make({ id: "build.showInPDF", title: t("Show in PDF"), category: "build", symbol: "text.viewfinder", defaultShortcut: "Ctrl+Shift+J", keywords: ["SyncTeX"], isEnabled: hasFile, run: (h) => h.showInPDF() }),
+    make({ id: "build.cleanAuxiliaryFiles", title: t("Clean Auxiliary Files"), category: "build", symbol: "trash", defaultShortcut: "Ctrl+Shift+K", isEnabled: hasProject, run: (h) => h.cleanAuxiliaryFiles() }),
     make({ id: "build.revealPDF", title: t("Show PDF in File Manager"), category: "build", symbol: "doc.viewfinder", isEnabled: (h) => h.hasPDF(), run: (h) => h.revealPDF() }),
     make({ id: "build.nextIssue", title: t("Next Issue"), category: "build", symbol: "chevron.down.circle", defaultShortcut: "Ctrl+'", isEnabled: hasProject, run: (h) => h.nextIssue(true) }),
     make({ id: "build.previousIssue", title: t("Previous Issue"), category: "build", symbol: "chevron.up.circle", defaultShortcut: "Ctrl+Shift+'", isEnabled: hasProject, run: (h) => h.nextIssue(false) }),

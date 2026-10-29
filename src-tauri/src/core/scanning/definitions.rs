@@ -44,7 +44,7 @@ pub fn item(name: &str, placeholders: &[Placeholder]) -> Option<CompletionItem> 
         text.push_str(&format!("${{{}:arg}}", index + 1));
         text.push_str(close);
     }
-    Some(CompletionItem { kind: "command".to_string(), label: name.to_string(), detail: Some(DETAIL.to_string()), insert_text: text })
+    Some(CompletionItem { kind: "command".to_string(), label: name.to_string(), detail: Some(DETAIL.to_string()), insert_text: text, package: None })
 }
 
 pub fn braces(count: i64) -> Vec<Placeholder> {

@@ -10,17 +10,21 @@
 //   the pages that will be visible offscreen and swaps everything in one synchronous step: no flash, no jump.
 // - Ctrl-click → `onInverseSync(page, x, y)` in PDF user space (points, origin bottom-left, rotation and crop box
 //   honoured by pdf.js's viewport). `highlight()` centres the first box and flashes all of them (1.5 s + fade).
+// - Pages too big for one canvas (high zoom) are rasterised in tiles: only the visible part plus a margin, re-rendered
+//   when the view leaves it, so text stays crisp up to 800 %.
+// - Link annotations become clickable regions: internal destinations scroll, http(s)/mailto open the system browser.
 // - Text layer (selection / copy) only for visible pages. Ctrl+wheel / pinch zoom anchored at the pointer.
 import "./preview.css";
-import { readPdf, type SyncBox } from "../ipc";
+import { openUrl, readPdf, type SyncBox } from "../ipc";
 import { t } from "../i18n";
 import { PreviewControls, createPlaceholder } from "./controls";
 import {
-  MARGIN_TOP, MAX_SCALE, MIN_SCALE, anchorAt, clampScale, fitWidthScale, layoutPages, pageAtY, resolveAnchor, stepZoom,
-  type Anchor, type PageBox,
+  MARGIN_TOP, MAX_SCALE, MIN_SCALE, anchorAt, clampScale, fitWidthScale, layoutPages, pageAtY, regionContains,
+  resolveAnchor, stepZoom, textLayerSize, tileRegion, visiblePart,
+  type Anchor, type PageBox, type Region,
 } from "./layout";
 import {
-  loadPdfJs, type PDFDocumentProxy, type PDFPageProxy, type PdfLib, type RenderTask, type TextContent, type TextLayer,
+  dataOptions, loadPdfJs, type PDFDocumentProxy, type PDFPageProxy, type PdfLib, type RenderTask, type TextContent, type TextLayer,
 } from "./pdfjs";
 
 export { MIN_SCALE, MAX_SCALE } from "./layout";
@@ -73,6 +77,12 @@ interface PageView extends PageBox {
   key: number;
   task: RenderTask | null;
   taskKey: number;
+  /** Part of the page `canvas` covers (tiled rendering), null = the whole page. */
+  region: Region | null;
+  taskRegion: Region | null;
+  linksEl: HTMLDivElement | null;
+  linkTargets: LinkTarget[];
+  linksBusy: boolean;
   textEl: HTMLDivElement | null;
   text: TextLayer | null;
   textScale: number;
@@ -81,6 +91,9 @@ interface PageView extends PageBox {
   /** Its document was replaced or cleared: late renders are dropped. */
   dead: boolean;
 }
+
+/** What a link annotation does when clicked. */
+interface LinkTarget { url?: string; dest?: unknown }
 
 interface Flash { page: PageView; x1: number; y1: number; x2: number; y2: number; el: HTMLDivElement }
 
@@ -108,7 +121,26 @@ function pixelRatio(cw: number, ch: number): number {
   return px > MAX_CANVAS_PIXELS ? Math.sqrt(MAX_CANVAS_PIXELS / (cw * ch)) : r;
 }
 
-const renderKey = (scale: number, p: PageBox): number => Math.round(scale * pixelRatio(p.cw, p.ch) * 10000) / 10000;
+const keyOf = (scale: number, ratio: number): number => Math.round(scale * ratio * 10000) / 10000;
+
+/** The page does not fit one canvas at full device resolution: render tiles instead. */
+const isTiled = (p: PageBox): boolean => p.cw * p.ch * dpr() * dpr() > MAX_CANVAS_PIXELS;
+
+/** What to rasterise for `p` right now: null = nothing (a tiled page that is not on screen). */
+interface Plan { key: number; region: Region | null; visible: Region | null }
+function planFor(p: PageBox, scale: number, vx: number, vy: number, vw: number, vh: number): Plan | null {
+  if (!isTiled(p)) return { key: keyOf(scale, pixelRatio(p.cw, p.ch)), region: null, visible: null };
+  const visible = visiblePart(p, vx, vy, vw, vh);
+  if (!visible) return null;
+  const region = tileRegion(visible, p.cw, p.ch, vw, vh, dpr(), MAX_CANVAS_PIXELS);
+  return { key: keyOf(scale, pixelRatio(region.w, region.h)), region, visible };
+}
+
+/** `p` already shows what `plan` asks for (rendered or being rendered). */
+function satisfies(key: number, region: Region | null, plan: Plan): boolean {
+  if (key !== plan.key) return false;
+  return !plan.visible || (!!region && regionContains(region, plan.visible));
+}
 
 const isCancel = (e: unknown): boolean =>
   !!e && typeof e === "object" && "name" in e && ((e as { name: string }).name === "RenderingCancelledException" || (e as { name: string }).name === "AbortException");
@@ -174,6 +206,7 @@ class Preview {
     on(this.scroller, "wheel", (e) => this.onWheel(e as WheelEvent), { passive: false });
     on(this.scroller, "mousedown", (e) => this.onMouseDown(e as MouseEvent), { capture: true });
     on(this.scroller, "keydown", (e) => this.onKeyDown(e as KeyboardEvent));
+    on(this.scroller, "click", (e) => this.onClick(e as MouseEvent));
     on(this.scroller, "gesturestart", (e) => { e.preventDefault(); this.gestureBase = this.scale; });
     on(this.scroller, "gesturechange", (e) => this.onGesture(e as GestureLike));
     on(this.scroller, "gestureend", (e) => e.preventDefault());
@@ -198,7 +231,7 @@ class Preview {
       this.lib = lib;
       const data = await readPdf(path);
       if (gen !== this.gen) return;
-      doc = await lib.getDocument({ data: new Uint8Array(data), worker, verbosity: 0 }).promise;
+      doc = await lib.getDocument({ data: new Uint8Array(data), worker, verbosity: 0, ...dataOptions() }).promise;
       if (gen !== this.gen) return;
       const proxies = await Promise.all(Array.from({ length: doc.numPages }, (_, i) => doc!.getPage(i + 1)));
       if (gen !== this.gen) return;
@@ -215,7 +248,12 @@ class Preview {
       const a = pageAtY(pages, top);
       const b = Math.min(pageAtY(pages, top + Math.max(this.clientH, 1)), a + 3);
       const pre: Array<Promise<void>> = [];
-      for (let i = Math.max(0, a); i <= b; i++) pre.push(this.renderInto(pages[i]!, scale));
+      const vx = pos?.x ?? 0;
+      for (let i = Math.max(0, a); i <= b; i++) {
+        const page = pages[i]!;
+        const plan = planFor(page, scale, vx, top, this.clientW, this.clientH);
+        if (plan) pre.push(this.renderInto(page, scale, plan.region));
+      }
       let timer = 0;
       await Promise.race([Promise.all(pre), new Promise<void>((r) => { timer = window.setTimeout(r, SWAP_TIMEOUT_MS); })]);
       clearTimeout(timer);
@@ -478,8 +516,8 @@ class Preview {
     const wanted: PageView[] = [];
     for (let i = Math.max(0, first - BUFFER); i <= Math.min(pages.length - 1, last + BUFFER); i++) {
       const p = pages[i]!;
-      const key = renderKey(this.scale, p);
-      if (p.key !== key && p.taskKey !== key) wanted.push(p);
+      const plan = this.planOf(p);
+      if (plan && !satisfies(p.key, p.region, plan) && !satisfies(p.taskKey, p.taskRegion, plan)) wanted.push(p);
     }
     const c = this.centerIndex;
     wanted.sort((a, b) => Math.abs(a.index - c) - Math.abs(b.index - c));
@@ -489,17 +527,22 @@ class Preview {
     for (let i = first; i <= last; i++) {
       const p = pages[i]!;
       if (p.canvas) void this.ensureText(p);
+      if (!p.linksEl) void this.ensureLinks(p);
     }
+  }
+
+  private planOf(p: PageView): Plan | null {
+    return planFor(p, this.scale, this.scroller.scrollLeft, this.scroller.scrollTop, this.clientW, this.clientH);
   }
 
   private pump(): void {
     while (this.inflight < CONCURRENCY && this.queue.length) {
       const p = this.queue.shift()!;
       if (p.dead) continue;
-      const key = renderKey(this.scale, p);
-      if (p.key === key || p.taskKey === key) continue;
+      const plan = this.planOf(p);
+      if (!plan || satisfies(p.key, p.region, plan) || satisfies(p.taskKey, p.taskRegion, plan)) continue;
       this.inflight++;
-      void this.renderInto(p, this.scale).finally(() => {
+      void this.renderInto(p, this.scale, plan.region).finally(() => {
         this.inflight--;
         this.pump();
       });
@@ -508,28 +551,39 @@ class Preview {
 
   // MARK: Rendering
 
-  /** Renders `p` at `scale` into a fresh canvas offscreen, then swaps it in (the old one stays until then). */
-  private async renderInto(p: PageView, scale: number): Promise<void> {
-    if (p.task) { p.task.cancel(); p.task = null; p.taskKey = 0; }
+  /** Renders `p` (or just `region` of it, for pages too big for one canvas) at `scale` into a fresh canvas offscreen,
+   *  then swaps it in (the old one stays until then). */
+  private async renderInto(p: PageView, scale: number, region: Region | null = null): Promise<void> {
+    if (p.task) { p.task.cancel(); p.task = null; p.taskKey = 0; p.taskRegion = null; }
     const cw = Math.max(1, Math.round(p.w * scale));
     const ch = Math.max(1, Math.round(p.h * scale));
-    const ratio = pixelRatio(cw, ch);
-    const key = Math.round(scale * ratio * 10000) / 10000;
+    const area = region ?? { x: 0, y: 0, w: cw, h: ch };
+    const ratio = pixelRatio(area.w, area.h);
+    const key = keyOf(scale, ratio);
     const viewport = p.proxy.getViewport({ scale });
     const canvas = document.createElement("canvas");
     canvas.className = "pv-canvas";
-    canvas.width = Math.max(1, Math.round(viewport.width * ratio));
-    canvas.height = Math.max(1, Math.round(viewport.height * ratio));
-    const sx = canvas.width / viewport.width;
-    const sy = canvas.height / viewport.height;
-    const task = p.proxy.render({
-      canvas,
-      viewport,
-      transform: sx !== 1 || sy !== 1 ? [sx, 0, 0, sy, 0, 0] : undefined,
-      background: "#ffffff",
-    });
+    canvas.width = Math.max(1, Math.round((region ? area.w : viewport.width) * ratio));
+    canvas.height = Math.max(1, Math.round((region ? area.h : viewport.height) * ratio));
+    let transform: number[] | undefined;
+    if (region) {
+      // Percent geometry: the tile keeps covering the same part of the page while a zoom stretches it.
+      const st = canvas.style;
+      st.inset = "auto";
+      st.left = `${(area.x / cw) * 100}%`;
+      st.top = `${(area.y / ch) * 100}%`;
+      st.width = `${(area.w / cw) * 100}%`;
+      st.height = `${(area.h / ch) * 100}%`;
+      transform = [ratio, 0, 0, ratio, -area.x * ratio, -area.y * ratio];
+    } else {
+      const sx = canvas.width / viewport.width;
+      const sy = canvas.height / viewport.height;
+      if (sx !== 1 || sy !== 1) transform = [sx, 0, 0, sy, 0, 0];
+    }
+    const task = p.proxy.render({ canvas, viewport, transform, background: "#ffffff" });
     p.task = task;
     p.taskKey = key;
+    p.taskRegion = region;
     try {
       await task.promise;
     } catch (e) {
@@ -537,7 +591,7 @@ class Preview {
       if (!isCancel(e)) console.warn("PDF page render failed", e);
       return;
     } finally {
-      if (p.task === task) { p.task = null; p.taskKey = 0; }
+      if (p.task === task) { p.task = null; p.taskKey = 0; p.taskRegion = null; }
     }
     if (p.dead) { canvas.width = canvas.height = 0; return; }
     if (p.canvas) {
@@ -549,6 +603,7 @@ class Preview {
     }
     p.canvas = canvas;
     p.key = key;
+    p.region = region;
     this.schedule(); // text layer for the newly drawn page
   }
 
@@ -590,15 +645,108 @@ class Preview {
     }
   }
 
+  // MARK: Links
+
+  /** Builds the clickable link regions of a page (percent geometry: they follow every zoom without re-layout). */
+  private async ensureLinks(p: PageView): Promise<void> {
+    if (p.linksEl || p.linksBusy || p.dead) return;
+    p.linksBusy = true;
+    try {
+      const annotations = await p.proxy.getAnnotations({ intent: "display" });
+      if (p.dead || p.linksEl) return;
+      const vp = p.proxy.getViewport({ scale: 1 });
+      const layer = document.createElement("div");
+      layer.className = "pv-links";
+      const targets: LinkTarget[] = [];
+      for (const a of annotations as Array<Record<string, unknown>>) {
+        if (a.subtype !== "Link" || !Array.isArray(a.rect)) continue;
+        const url = typeof a.url === "string" ? a.url : typeof a.unsafeUrl === "string" ? a.unsafeUrl : undefined;
+        const dest = a.dest ?? undefined;
+        if (!url && dest === undefined) continue;
+        const r = a.rect as number[];
+        const [x1, y1] = vp.convertToViewportPoint(r[0]!, r[1]!) as [number, number];
+        const [x2, y2] = vp.convertToViewportPoint(r[2]!, r[3]!) as [number, number];
+        if (![x1, y1, x2, y2].every(Number.isFinite)) continue;
+        const el = document.createElement("a");
+        el.className = "pv-link";
+        el.dataset.link = String(targets.length);
+        el.style.left = `${(Math.min(x1!, x2!) / p.w) * 100}%`;
+        el.style.top = `${(Math.min(y1!, y2!) / p.h) * 100}%`;
+        el.style.width = `${(Math.abs(x2! - x1!) / p.w) * 100}%`;
+        el.style.height = `${(Math.abs(y2! - y1!) / p.h) * 100}%`;
+        if (url) el.title = url;
+        targets.push({ url, dest });
+        layer.append(el);
+      }
+      p.linkTargets = targets;
+      p.linksEl = layer;
+      if (targets.length) p.el.append(layer);
+    } catch (e) {
+      if (!isCancel(e)) console.warn("PDF links failed", e);
+      p.linksEl = document.createElement("div"); // do not retry on every frame
+    } finally {
+      p.linksBusy = false;
+    }
+  }
+
+  private onClick(e: MouseEvent): void {
+    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+    const link = (e.target as Element | null)?.closest?.(".pv-link") as HTMLElement | null;
+    const pageEl = link?.closest(".pv-page") as HTMLElement | null;
+    const page = pageEl ? this.pages[Number(pageEl.dataset.page)] : undefined;
+    const target = page?.linkTargets[Number(link?.dataset.link)];
+    if (!target) return;
+    e.preventDefault();
+    if (target.dest !== undefined) void this.goToDestination(target.dest);
+    else if (target.url && /^(https?:\/\/|mailto:)/i.test(target.url)) void openUrl(target.url).catch(() => undefined);
+  }
+
+  /** Scrolls to a PDF destination (named, or explicit `[page, /XYZ left top zoom]` and the Fit variants). */
+  private async goToDestination(dest: unknown): Promise<void> {
+    const doc = this.doc;
+    if (!doc) return;
+    try {
+      const explicit = typeof dest === "string" ? await doc.getDestination(dest) : dest;
+      if (!Array.isArray(explicit) || this.doc !== doc) return;
+      const ref = explicit[0] as unknown;
+      let index = -1;
+      if (typeof ref === "number") index = ref;
+      else if (ref && typeof ref === "object") index = await doc.getPageIndex(ref as Parameters<PDFDocumentProxy["getPageIndex"]>[0]);
+      const page = this.pages[index];
+      if (!page || this.doc !== doc) return;
+      const mode = (explicit[1] as { name?: string } | null)?.name ?? "Fit";
+      const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+      let left: number | null = null;
+      let top: number | null = null;
+      if (mode === "XYZ") { left = num(explicit[2]); top = num(explicit[3]); }
+      else if (mode === "FitH" || mode === "FitBH") top = num(explicit[2]);
+      else if (mode === "FitV" || mode === "FitBV") left = num(explicit[2]);
+      else if (mode === "FitR") { left = num(explicit[2]); top = num(explicit[5]); }
+      const vp = page.proxy.getViewport({ scale: 1 });
+      const [vx, vy] = vp.convertToViewportPoint(left ?? 0, top ?? 0) as [number, number];
+      const s = this.scale;
+      this.scroller.scrollTop = Math.max(0, Math.round(page.y + (top === null ? -MARGIN_TOP : vy) * s - (top === null ? 0 : 24)));
+      if (left !== null && mode !== "FitH" && mode !== "FitBH") {
+        const x = page.x + vx * s;
+        if (x < this.scroller.scrollLeft || x > this.scroller.scrollLeft + this.clientW) this.scroller.scrollLeft = Math.max(0, Math.round(x - 24));
+      }
+      this.schedule();
+    } catch (e) {
+      console.warn("PDF destination failed", e);
+    }
+  }
+
   private release(p: PageView): void {
-    if (p.task) { p.task.cancel(); p.task = null; p.taskKey = 0; }
+    if (p.task) { p.task.cancel(); p.task = null; p.taskKey = 0; p.taskRegion = null; }
     if (p.canvas) {
       p.canvas.remove();
       p.canvas.width = p.canvas.height = 0;
       p.canvas = null;
       p.key = 0;
+      p.region = null;
     }
     dropText(p);
+    dropLinks(p);
   }
 
   // MARK: Highlights (forward search)
@@ -708,16 +856,17 @@ function makePage(proxy: PDFPageProxy, index: number): PageView {
   el.dataset.page = String(index);
   return {
     index, proxy, rotation: vp.rotation, el, w: vp.width, h: vp.height, x: 0, y: 0, cw: 1, ch: 1,
-    canvas: null, key: 0, task: null, taskKey: 0, textEl: null, text: null, textScale: 0, textBusy: false,
+    canvas: null, key: 0, task: null, taskKey: 0, region: null, taskRegion: null, linksEl: null, linkTargets: [],
+    linksBusy: false, textEl: null, text: null, textScale: 0, textBusy: false,
     content: null, dead: false,
   };
 }
 
 /** pdf.js sizes the text layer with CSS `round()`; set plain pixels instead (unrotated page size, pdf.js rotates). */
 function sizeTextLayer(p: PageView, el: HTMLElement): void {
-  const turned = p.rotation % 180 !== 0;
-  el.style.width = `${turned ? p.ch : p.cw}px`;
-  el.style.height = `${turned ? p.cw : p.ch}px`;
+  const size = textLayerSize(p.rotation, p.cw, p.ch);
+  el.style.width = `${size.width}px`;
+  el.style.height = `${size.height}px`;
 }
 
 function dropText(p: PageView): void {
@@ -726,4 +875,10 @@ function dropText(p: PageView): void {
   p.text = null;
   p.textEl = null;
   p.textScale = 0;
+}
+
+function dropLinks(p: PageView): void {
+  p.linksEl?.remove();
+  p.linksEl = null;
+  p.linkTargets = [];
 }

@@ -132,9 +132,16 @@ function tree(root: string): FileNode[] {
   return top;
 }
 
+/** The first top-level .tex file with \documentclass, like the backend's root detection (main.tex first). */
+function mockRoot(root: string): string | undefined {
+  const top = [...files.keys()].filter((k) => k.startsWith(root + "/") && !k.slice(root.length + 1).includes("/") && k.endsWith(".tex"));
+  top.sort((a, b) => Number(b.endsWith("/main.tex")) - Number(a.endsWith("/main.tex")) || a.localeCompare(b));
+  return top.find((k) => /\\documentclass/.test(files.get(k) ?? ""));
+}
+
 function info(root: string): ProjectInfo {
   seedProject(root);
-  return { root, name: nameOf(root), files: tree(root), rootFile: `${root}/main.tex` };
+  return { root, name: nameOf(root), files: tree(root), rootFile: mockRoot(root) };
 }
 
 // ---- project index ----------------------------------------------------------------------------------------------
@@ -172,7 +179,7 @@ function index(root: string, overrides: Record<string, string>): ProjectIndex {
   }
   return {
     outline, labels, citations: [...citations], bibKeys, includes: ["sections/introducao", "sections/homologia"],
-    rootFile: `${root}/main.tex`, warnings: [], stats: { words, pages: 2 },
+    rootFile: mockRoot(root), warnings: [], stats: { words, pages: 2 },
   };
 }
 
@@ -408,12 +415,36 @@ async function handle(cmd: string, a: A): Promise<unknown> {
     case "synctex_inverse": { const r = rootOf(a.pdfPath); return r ? inverse(r, a.page, a.y) : null; }
     case "install_packages": await delay(600); return { ok: true, output: `tlmgr install ${(a.packages as string[]).join(" ")}\n[1/1] done` };
     case "watch_project": case "unwatch_project": case "reveal_in_file_manager": return null;
+    case "open_url": { if (/^(https?:\/\/|mailto:)/i.test(String(a.url))) window.open(String(a.url), "_blank", "noopener"); return null; }
     case "load_settings": return structuredClone(settingsData);
     case "save_settings":
       settingsData = a.settings as Settings;
       try { localStorage.setItem(STORE, JSON.stringify(settingsData)); } catch { /* ignore */ }
       return settingsData;
     case "recent_projects": return recents;
+    case "create_file": case "create_folder": {
+      const p = `${a.dir}/${a.name}`;
+      if ([...files.keys()].some((k) => k === p || k.startsWith(p + "/"))) throw `“${a.name}” already exists`;
+      files.set(cmd === "create_folder" ? `${p}/.gitkeep` : p.includes(".", p.lastIndexOf("/")) ? p : `${p}.tex`, "");
+      return cmd === "create_folder" ? p : p.includes(".", p.lastIndexOf("/")) ? p : `${p}.tex`;
+    }
+    case "rename_path": {
+      const to = `${String(a.path).replace(/[^/]*$/, "")}${a.name}`;
+      if (to !== a.path && [...files.keys()].some((k) => k === to || k.startsWith(to + "/"))) throw `“${a.name}” already exists`;
+      for (const k of [...files.keys()]) if (k === a.path || k.startsWith(a.path + "/")) { files.set(to + k.slice(a.path.length), files.get(k)!); files.delete(k); }
+      return to;
+    }
+    case "duplicate_path": {
+      const m = /^(.*?)(\.[^./]*)?$/.exec(String(a.path))!;
+      let n = 1; let to: string;
+      do { to = `${m[1]} ${n === 1 ? "copy" : `copy ${n}`}${m[2] ?? ""}`; n++; } while ([...files.keys()].some((k) => k === to || k.startsWith(to + "/")));
+      for (const k of [...files.keys()]) if (k === a.path || k.startsWith(a.path + "/")) files.set(to + k.slice(a.path.length), files.get(k)!);
+      return to;
+    }
+    case "move_to_trash": for (const k of [...files.keys()]) if (k === a.path || k.startsWith(a.path + "/")) files.delete(k); return null;
+    case "open_in_default_app": return null;
+    case "clean_auxiliary_files": return 0;
+    case "remove_recent_project": recents = recents.filter((r) => r.path !== a.path); return recents;
     case "add_recent_project": {
       recents = [{ path: a.path, name: a.name ?? nameOf(a.path), lastOpened: Date.now() }, ...recents.filter((r) => r.path !== a.path)];
       return recents;

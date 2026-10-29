@@ -996,20 +996,59 @@ pub struct LaTeXCompiler {
     pub shadow_root: String,
 }
 
-/// `<cache dir>/io.github.gabe-rbo.GabeTeX/Shadow` (XDG cache on Linux, `%LOCALAPPDATA%` on Windows).
+/// `<cache dir>/io.github.gabe-rbo.GabeTeX/Shadow` (`%LOCALAPPDATA%` on Windows, `~/Library/Caches` on macOS).
+///
+/// On Linux the folder must not have a hidden component (`~/.cache`): TeX Live's `openout_any = p` (and `r`)
+/// makes bibtex, makeindex & co. refuse to write any path containing `/.`, even below `TEXMFOUTPUT`, so every
+/// bibliography would fail. See [`linux_shadow_base`].
 pub fn default_shadow_root() -> String {
     let base = if cfg!(windows) {
         std::env::var_os("LOCALAPPDATA").map(std::path::PathBuf::from)
     } else if cfg!(target_os = "macos") {
         distribution::home_dir().map(|h| h.join("Library").join("Caches"))
     } else {
-        std::env::var_os("XDG_CACHE_HOME")
-            .map(std::path::PathBuf::from)
-            .filter(|p| p.is_absolute())
-            .or_else(|| distribution::home_dir().map(|h| h.join(".cache")))
+        Some(linux_shadow_base())
     }
     .unwrap_or_else(std::env::temp_dir);
     lexically_standardized(&base.join("io.github.gabe-rbo.GabeTeX").join("Shadow").to_string_lossy())
+}
+
+/// True when no component of `p` starts with a dot (what kpathsea's paranoid output check rejects).
+pub fn has_no_hidden_component(p: &Path) -> bool {
+    p.components().all(|c| !matches!(c, std::path::Component::Normal(n) if n.to_string_lossy().starts_with('.')))
+}
+
+/// The first usable base without a hidden component: `$XDG_CACHE_HOME`, then `$XDG_RUNTIME_DIR` (per-user,
+/// mode 0700), then a private `gabetex-<uid>` folder in the temp directory; `~/.cache` only as a last resort.
+fn linux_shadow_base() -> std::path::PathBuf {
+    use std::path::PathBuf;
+    let env_dir = |k: &str| std::env::var_os(k).map(PathBuf::from).filter(|p| p.is_absolute() && has_no_hidden_component(p));
+    if let Some(p) = env_dir("XDG_CACHE_HOME") {
+        return p;
+    }
+    if let Some(p) = env_dir("XDG_RUNTIME_DIR").filter(|p| p.is_dir()) {
+        return p;
+    }
+    #[cfg(unix)]
+    if let Some(p) = private_temp_dir() {
+        return p;
+    }
+    distribution::home_dir().map(|h| h.join(".cache")).unwrap_or_else(std::env::temp_dir)
+}
+
+/// `<tmp>/gabetex-<uid>`, created with mode 0700; refused when it is a link or belongs to someone else.
+#[cfg(unix)]
+fn private_temp_dir() -> Option<std::path::PathBuf> {
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
+    let tmp = std::env::temp_dir();
+    if !has_no_hidden_component(&tmp) {
+        return None;
+    }
+    let uid = std::fs::metadata("/proc/self").ok()?.uid();
+    let dir = tmp.join(format!("gabetex-{uid}"));
+    let _ = std::fs::DirBuilder::new().mode(0o700).create(&dir);
+    let meta = std::fs::symlink_metadata(&dir).ok()?;
+    (meta.is_dir() && meta.uid() == uid && meta.permissions().mode() & 0o077 == 0).then_some(dir)
 }
 
 /// Compile the IPC way: detect TeX (cached), compile live with the given overrides.
@@ -2157,6 +2196,15 @@ mod tests {
                 true
             });
             lines
+        }
+
+        #[test]
+        #[cfg(target_os = "linux")]
+        fn shadow_root_has_no_hidden_component() {
+            // bibtex refuses to write below a dot folder (openout_any = p), so ~/.cache must never be used.
+            assert!(has_no_hidden_component(Path::new("/home/u/cache/io.github.gabe-rbo.GabeTeX/Shadow")));
+            assert!(!has_no_hidden_component(Path::new("/home/u/.cache/io.github.gabe-rbo.GabeTeX/Shadow")));
+            assert!(has_no_hidden_component(Path::new(&default_shadow_root())), "{}", default_shadow_root());
         }
 
         #[test]

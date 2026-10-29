@@ -68,3 +68,20 @@ PDF preview (pdf.js, keeps scroll/zoom on reload, zoom capsule, Ctrl-click → i
 highlight), live compile while typing (debounced), Issues panel, status bar capsules (word count, page, encoding,
 compile state), missing-package banner, Quick Open (Ctrl+P), Command Palette (Ctrl+Shift+P) with editable shortcuts,
 Settings window, Light/Dark, en/pt-BR. On Linux/Windows every ⌘ shortcut becomes Ctrl.
+
+## Windows (port of the Mac scenes)
+
+Every window runs the same frontend; its label says what it shows (`src/app/windows.ts`). Capabilities are scoped
+per label (`src-tauri/capabilities/*.json`).
+
+| label | shows | capability |
+|---|---|---|
+| `welcome` | Welcome, 700×450, not resizable (the window created at launch) | `default` |
+| `project-<hash of path>` | one project (`?project=&file=`); several may be open; reused when the folder opens again | `default` |
+| `pdf-<hash>` | the detached PDF of that project (`src/ui/pdfWindow.ts`, synced by `src/app/pdfLink.ts` events) | `pdf-window` |
+| `present-<hash>` / `presenter-<hash>` | presentation: slides (controller) / presenter view on a second display (`src/present/`) | `presentation` |
+| `main` | browser mock: single-window mode (in-window routing, PDF Only and in-window presentation as fallbacks) | `default` |
+
+Native title “Project — file”; closing a project window asks about unsaved files (`onCloseRequested`), closes its
+PDF and presentation windows and brings Welcome back when it was the last project window. Settings saved by one
+window are broadcast (`gabetex://settings-changed`) and merged into the others.

@@ -30,7 +30,7 @@ export type PackagePhase =
 
 export type ExternalChange = "modified" | "deleted";
 
-/** Files the editor opens as text. Everything else is revealed in the file manager. */
+/** Files the editor opens as text. Everything else opens in the default app. */
 const TEXT_EXTENSIONS = new Set(["tex", "ltx", "sty", "cls", "bib", "bst", "bbx", "cbx", "dtx", "ins", "txt", "md", "def", "cfg", "clo", "fd", "latexmkrc", "tikz", "pgf", "csv", "dat", "lua", "py", "json", "yaml", "yml", "xml", "bbl", "log", "tsv", ""]);
 export const isTextFile = (path: string): boolean => TEXT_EXTENSIONS.has(extname(path)) || basename(path).startsWith(".");
 
@@ -74,6 +74,8 @@ export class Workspace {
   selectedIssue = -1;
 
   pdfOnly = false;
+  /** The preview lives in its own window (src/app/pdfLink.ts); `preview` then forwards to it. */
+  pdfDetached = false;
   sidebarMode: "files" | "outline";
 
   private generation = 0;
@@ -206,7 +208,7 @@ export class Workspace {
     let isNew = false;
     if (!this.tabs.includes(path)) {
       if (!isTextFile(path)) {
-        void ipc.revealInFileManager(path).catch(() => {});
+        void ipc.openInDefaultApp(path).catch(() => ipc.revealInFileManager(path).catch(() => {}));
         return false;
       }
       let content: ipc.FileContent;
@@ -296,6 +298,166 @@ export class Workspace {
     await this.refreshFiles();
     await this.open(path);
     this.editor?.focus();
+  }
+
+  // ---- file operations (sidebar; Mac ProjectWorkspace+Files) ---------------------------------------------------
+
+  /** An alert for a failed file operation (Mac `present`). Backend messages are English; known ones are localized. */
+  private async fileError(e: unknown, title: string, name: string): Promise<void> {
+    const msg = String(e);
+    let head = title;
+    let detail = msg;
+    if (/already exists$/.test(msg)) { head = t("“%@” already exists", name); detail = t("Choose a different name."); }
+    else if (/^Names cannot be empty/.test(msg)) { head = t("Invalid name"); detail = t("Names cannot be empty or contain “/”."); }
+    await this.ask({ title: head, message: detail, buttons: [{ title: t("OK"), role: "default", value: "ok" }] });
+  }
+
+  private static under(p: string, base: string): boolean {
+    return p === base || p.startsWith(base + "/") || p.startsWith(base + "\\");
+  }
+
+  /** Folder used as the target of New File / New Folder for a selected path. */
+  directoryOf(path: string, isDir: boolean): string {
+    return isDir ? path : dirname(path);
+  }
+
+  async createFolder(name: string, inDir?: string): Promise<void> {
+    try {
+      await ipc.createFolder(inDir ?? this.root, name);
+    } catch (e) {
+      await this.fileError(e, t("Could not create “%@”", name.trim()), name.trim());
+      return;
+    }
+    await this.refreshFiles();
+  }
+
+  /** Renames a file or folder; open tabs follow it. Unsaved edits of affected files are saved first. */
+  async renameItem(path: string, name: string): Promise<boolean> {
+    const old = basename(path);
+    if (name.trim() === old) return true;
+    for (const p of this.tabs.filter((x) => Workspace.under(x, path))) {
+      if (this.dirty.has(p) && !(await this.save(p, { compile: false }))) return false;
+    }
+    let to: string;
+    try {
+      to = await ipc.renamePath(path, name);
+    } catch (e) {
+      await this.fileError(e, t("Could not rename “%@”", old), name.trim());
+      return false;
+    }
+    if (to === path) return true;
+    this.remapPaths(path, to);
+    await this.refreshFiles();
+    void this.refreshIndex();
+    this.scheduleLiveCompile();
+    return true;
+  }
+
+  /** Updates tabs, buffers and the main-document choice after `from` moved to `to` on disk. */
+  private remapPaths(from: string, to: string): void {
+    const map = (p: string): string | undefined => (Workspace.under(p, from) ? to + p.slice(from.length) : undefined);
+    const wasCurrent = this.current;
+    for (let i = 0; i < this.tabs.length; i++) {
+      const old = this.tabs[i]!;
+      const neu = map(old);
+      if (!neu) continue;
+      this.tabs[i] = neu;
+      const disk = this.diskText.get(old);
+      this.diskText.delete(old);
+      if (disk !== undefined) this.diskText.set(neu, disk);
+      const enc = this.encodings.get(old);
+      this.encodings.delete(old);
+      if (enc) this.encodings.set(neu, enc);
+      this.dirty.delete(old);
+      if (this.externalChanges.delete(old)) this.events.emit("banners");
+      this.editor?.close(old);
+      if (old === wasCurrent) {
+        this.current = neu;
+        this.editor?.open(neu, disk ?? "");
+        this.pushDiagnostics(neu);
+      }
+    }
+    const main = settings.project(this.root).mainFile;
+    const newMain = main ? map(main) : undefined;
+    if (newMain) settings.updateProject(this.root, (m) => { m.mainFile = newMain; });
+    const detected = this.detectedRoot && map(this.detectedRoot);
+    if (detected) this.detectedRoot = detected;
+    this.events.emit("tabs");
+    this.events.emit("dirty");
+    this.events.emit("main");
+  }
+
+  /** Copies next to the original (“name copy.ext”) and opens the copy when it is a file. */
+  async duplicateItem(path: string, isDir: boolean): Promise<void> {
+    let copy: string;
+    try {
+      copy = await ipc.duplicatePath(path);
+    } catch (e) {
+      await this.fileError(e, t("Could not duplicate “%@”", basename(path)), basename(path));
+      return;
+    }
+    await this.refreshFiles();
+    if (!isDir) await this.open(copy);
+  }
+
+  /** Move to Trash. Asks first when files have unsaved edits (or when `confirm` is set); false = not trashed. */
+  async trashItem(path: string, opts: { confirm?: boolean } = {}): Promise<boolean> {
+    const name = basename(path);
+    const dirty = this.tabs.filter((p) => Workspace.under(p, path) && this.dirty.has(p));
+    const cancel = { title: t("Cancel"), role: "cancel" as const, value: "cancel" };
+    if (dirty.length) {
+      const answer = await this.ask({
+        title: t("Move “%@” to the Trash?", name),
+        message: t("Unsaved changes in %@ will be lost if you don’t save them.", formatList(dirty.map((p) => `“${basename(p)}”`))),
+        buttons: [
+          { title: t("Save and Move to Trash"), role: "default", value: "save" },
+          { title: t("Discard Changes and Move to Trash"), role: "destructive", value: "discard" },
+          cancel,
+        ],
+      });
+      if (answer === "cancel") return false;
+      if (answer === "save") for (const p of dirty) if (!(await this.save(p, { compile: false }))) return false;
+    } else if (opts.confirm) {
+      const answer = await this.ask({
+        title: t("Move “%@” to the Trash?", name),
+        buttons: [{ title: t("Move to Trash"), role: "destructive", value: "trash" }, cancel],
+      });
+      if (answer !== "trash") return false;
+    }
+    try {
+      await ipc.moveToTrash(path);
+    } catch (e) {
+      await this.fileError(e, t("Could not move “%@” to the Trash", name), name);
+      return false;
+    }
+    for (const p of this.tabs.filter((x) => Workspace.under(x, path))) this.closeTabNow(p);
+    const main = settings.project(this.root).mainFile;
+    if (main && Workspace.under(main, path)) this.setMainFile(undefined);
+    await this.refreshFiles();
+    void this.refreshIndex();
+    this.scheduleLiveCompile();
+    return true;
+  }
+
+  copyPath(path: string): void {
+    void navigator.clipboard.writeText(path).then(() => this.flash(t("Copy Path"))).catch(() => {});
+  }
+
+  /** Mac `cleanAuxiliaryFiles`: drops the build workspace (never project files), then rebuilds from scratch. */
+  async cleanAuxiliaryFiles(): Promise<void> {
+    this.stopCompile();
+    try {
+      await ipc.cleanAuxiliaryFiles(this.root);
+    } catch (e) {
+      this.flash(String(e));
+      return;
+    }
+    this.compileDiagnostics = [];
+    this.toolOutput = "";
+    this.rebuildDiagnostics();
+    this.flash(t("Auxiliary files removed"));
+    this.startCompile("live", { force: true });
+    void this.refreshFiles();
   }
 
   // ---- editing and saving ------------------------------------------------------------------------------------
@@ -685,7 +847,7 @@ export class Workspace {
       if (!silent) this.flash(t("Compile the document first."));
       return;
     }
-    if (settings.get("showPreview") === false && !this.pdfOnly) {
+    if (settings.get("showPreview") === false && !this.pdfOnly && !this.pdfDetached) {
       settings.set("showPreview", true);
     }
     try {

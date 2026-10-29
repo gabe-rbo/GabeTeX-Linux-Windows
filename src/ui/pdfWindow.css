@@ -1,0 +1,6 @@
+/* The detached PDF window: a slim toolbar (title + Attach) over the preview. */
+.pdfw-root { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--window); }
+.pdfw-toolbar { height: 46px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 10px 0 16px; border-bottom: 0.5px solid var(--separator); }
+.pdfw-title { font-size: 13px; font-weight: 600; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.pdfw-host { position: relative; flex: 1; min-height: 0; }
+.pdfw-host > .pv-root { position: absolute; inset: 0; }

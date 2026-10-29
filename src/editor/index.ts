@@ -18,6 +18,7 @@ import { completion } from "./completion";
 import { closeDiagnosticPopover, diagnostics, setDiagnosticsEffect } from "./diagnostics";
 import { flashField, revealLine } from "./reveal";
 import { ctrlClick } from "./mouse";
+import { editorContextMenu } from "./contextmenu";
 import { lineEnding } from "./scan";
 import { cmPhrasesPT, isPortuguese } from "./i18n";
 
@@ -242,6 +243,12 @@ export function createEditor(parent: HTMLElement, opts: EditorOptions): EditorHa
       openInclude: (target) => current && opts.onOpenInclude(target, current.path),
       jumpToLabel: (label) => opts.onJumpToLabel(label),
       forwardSync: (pos) => forwardSyncAt(view, pos),
+    })),
+    editorContextMenu(() => ({
+      openInclude: (target) => current && opts.onOpenInclude(target, current.path),
+      jumpToLabel: (label) => opts.onJumpToLabel(label),
+      forwardSync: (pos) => forwardSyncAt(view, pos),
+      toggleComment: (v) => { toggleComment(v); },
     })),
     EditorView.updateListener.of((u) => {
       if (silent || !current) return;

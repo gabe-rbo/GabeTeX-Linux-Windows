@@ -189,6 +189,19 @@
 .pv-page [data-main-rotation="180"] { transform: rotate(180deg) translate(-100%, -100%); }
 .pv-page [data-main-rotation="270"] { transform: rotate(270deg) translateX(-100%); }
 
+/* Link annotations: invisible hit areas above the text layer; internal links scroll, external ones open the browser. */
+.pv-links { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.pv-link {
+  position: absolute;
+  display: block;
+  pointer-events: auto;
+  cursor: pointer;
+  border-radius: 2px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.pv-link:hover { background: color-mix(in srgb, var(--pv-accent) 14%, transparent); }
+
 @media (prefers-reduced-motion: reduce) {
   .pv-controls, .pv-has-doc .pv-controls, .pv-btn { transition: none; }
   .pv-flash { animation: none; }

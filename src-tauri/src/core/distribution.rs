@@ -1247,7 +1247,12 @@ mod tests {
 
         #[test]
         fn inspect_rejects_non_tex_dirs() {
-            assert!(inspect(Path::new("/bin")).is_none());
+            // `/bin` holds TeX on distro installs (apt texlive), so use a directory known to have no TeX.
+            let empty = std::env::temp_dir().join(format!("gtx-notex-{}", std::process::id()));
+            std::fs::create_dir_all(empty.join("bin")).unwrap();
+            std::fs::write(empty.join("bin").join("ls"), "").unwrap();
+            assert!(inspect(&empty.join("bin")).is_none());
+            let _ = std::fs::remove_dir_all(&empty);
             assert!(inspect(Path::new("/nonexistent-gtx")).is_none());
         }
     }

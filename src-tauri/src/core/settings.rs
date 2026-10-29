@@ -719,6 +719,10 @@ pub fn add_recent_project(path: &str, name: Option<&str>) -> Result<Vec<RecentPr
     store().add_recent_project(path, name)
 }
 
+pub fn remove_recent_project(path: &str) -> Result<Vec<RecentProject>, String> {
+    store().remove_recent_project(path)
+}
+
 pub fn set_project_label(path: &str, label: Option<&str>) -> Result<Vec<RecentProject>, String> {
     store().set_project_label(path, label)
 }

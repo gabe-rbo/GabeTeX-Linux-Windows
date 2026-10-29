@@ -295,6 +295,19 @@
   color: var(--gx-ed-secondary);
 }
 .gx-selected .gx-completion-detail { color: rgba(255, 255, 255, 0.85); }
+/* Package badge (CompletionListView): a quaternary capsule with the providing package. */
+.gx-completion-package {
+  flex: none;
+  margin-left: 8px;
+  padding: 1.5px 6px;
+  border-radius: 999px;
+  font: 500 10px/1.2 var(--gx-code-font, "JetBrains Mono", "Cascadia Code", "DejaVu Sans Mono", monospace);
+  color: var(--gx-ed-secondary);
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+.gx-completion-detail + .gx-completion-package { margin-left: 8px; }
+.gx-completion-label + .gx-completion-package { margin-left: auto; }
+.gx-selected .gx-completion-package { color: #fff; background: rgba(255, 255, 255, 0.2); }
 .tx-k-command { background: var(--tx-cmd); }
 .tx-k-environment { background: var(--tx-env); }
 .tx-k-label { background: var(--tx-ref); }

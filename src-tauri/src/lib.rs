@@ -25,12 +25,21 @@ pub fn run() {
             commands::watch_project,
             commands::unwatch_project,
             commands::reveal_in_file_manager,
+            commands::open_url,
             commands::load_settings,
             commands::save_settings,
             commands::recent_projects,
             commands::add_recent_project,
             commands::set_project_label,
             commands::read_pdf,
+            commands::create_file,
+            commands::create_folder,
+            commands::rename_path,
+            commands::duplicate_path,
+            commands::move_to_trash,
+            commands::open_in_default_app,
+            commands::clean_auxiliary_files,
+            commands::remove_recent_project,
         ])
         .build(tauri::generate_context!())
         .expect("error while building GabeTeX");

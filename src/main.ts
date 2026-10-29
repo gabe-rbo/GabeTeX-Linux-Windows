@@ -4,6 +4,7 @@ import "./styles/main.css";
 import { initI18n } from "./i18n";
 import { settings } from "./app/settings";
 import { App } from "./app/app";
+import { windowRole } from "./app/windows";
 
 async function boot(): Promise<void> {
   const root = document.getElementById("app");
@@ -14,8 +15,14 @@ async function boot(): Promise<void> {
     (await import("./mock/ipc-mock")).installMockBackend();
   }
   await Promise.all([initI18n(), settings.load()]);
-  const app = new App(root);
-  await app.start();
+  settings.syncAcrossWindows();
+  // The window's label says what it shows (src/app/windows.ts): the PDF and presentation windows load only their
+  // own chunk; everything else is the app shell (Welcome or a project).
+  const role = windowRole();
+  if (role === "pdf") await (await import("./ui/pdfWindow")).bootPdfWindow(root);
+  else if (role === "present") await (await import("./present/presentation")).bootPresentationWindow(root);
+  else if (role === "presenter") await (await import("./present/presentation")).bootPresenterWindow(root);
+  else await new App(root).start();
   document.documentElement.classList.add("ready");
   window.addEventListener("beforeunload", () => void settings.flush());
 }

@@ -25,3 +25,19 @@ export function loadPdfJs(): Promise<{ lib: PdfLib; worker: PDFJS.PDFWorker }> {
   });
   return lib;
 }
+
+/**
+ * Where pdf.js finds its data files (copied to `public/pdfjs/` by the Vite step): predefined CMaps for CJK and other
+ * non-embedded encodings, the 14 standard fonts for unembedded fonts, ICC profiles and the wasm image decoders.
+ * They are plain static files fetched by the worker only when a document needs them, never part of a bundle.
+ */
+export function dataOptions(): { cMapUrl: string; cMapPacked: true; standardFontDataUrl: string; iccUrl: string; wasmUrl: string } {
+  const base = new URL(`${import.meta.env.BASE_URL}pdfjs/`, document.baseURI).href;
+  return {
+    cMapUrl: `${base}cmaps/`,
+    cMapPacked: true,
+    standardFontDataUrl: `${base}standard_fonts/`,
+    iccUrl: `${base}iccs/`,
+    wasmUrl: `${base}wasm/`,
+  };
+}

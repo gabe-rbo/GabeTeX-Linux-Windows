@@ -29,7 +29,7 @@ export interface ProjectIndex {
 }
 
 export type CompletionKind = "command" | "environment" | "label" | "citation" | "file" | "package" | "snippet" | string;
-export interface CompletionItem { label: string; kind: CompletionKind; detail?: string; insertText: string }
+export interface CompletionItem { label: string; kind: CompletionKind; detail?: string; insertText: string; package?: string }
 
 export interface TeXDistribution { name: string; binDir: string; latexmk: boolean; tlmgr: boolean; synctex: boolean }
 export interface CompileResult {
@@ -78,6 +78,8 @@ export const installPackages = (packages: string[]) => invoke<InstallResult>("in
 export const watchProject = (root: string) => invoke<void>("watch_project", { root });
 export const unwatchProject = (root: string) => invoke<void>("unwatch_project", { root });
 export const revealInFileManager = (path: string) => invoke<void>("reveal_in_file_manager", { path });
+/** Opens an http(s)/mailto link in the system browser (backend enforces the scheme allowlist). */
+export const openUrl = (url: string) => invoke<void>("open_url", { url });
 export const loadSettings = () => invoke<Settings>("load_settings", {});
 export const saveSettings = (settings: Settings) => invoke<Settings>("save_settings", { settings });
 export const recentProjects = () => invoke<RecentProject[]>("recent_projects", {});
@@ -92,3 +94,19 @@ export const onFsChanged = (cb: (e: FsChangedEvent) => void): Promise<UnlistenFn
 
 /** The raw bytes of a PDF (binary IPC response, no JSON array). */
 export const readPdf = (path: string) => invoke<ArrayBuffer>("read_pdf", { path });
+
+// ---- file operations (sidebar) ----------------------------------------------------------------------------------
+
+/** Creates an empty file in `dir` (adds “.tex” without an extension); resolves with its path. */
+export const createFile = (dir: string, name: string) => invoke<string>("create_file", { dir, name });
+export const createFolder = (dir: string, name: string) => invoke<string>("create_folder", { dir, name });
+/** Renames in place; resolves with the new path. */
+export const renamePath = (path: string, name: string) => invoke<string>("rename_path", { path, name });
+/** “name copy.ext”, “name copy 2.ext”, …; resolves with the copy's path. */
+export const duplicatePath = (path: string) => invoke<string>("duplicate_path", { path });
+/** System trash (freedesktop spec on Linux, the Recycle Bin on Windows). */
+export const moveToTrash = (path: string) => invoke<void>("move_to_trash", { path });
+export const openInDefaultApp = (path: string) => invoke<void>("open_in_default_app", { path });
+/** Drops the shadow workspace and deletes TeX leftovers (.aux, .log, …) in the project; resolves with how many. */
+export const cleanAuxiliaryFiles = (root: string) => invoke<number>("clean_auxiliary_files", { root });
+export const removeRecentProject = (path: string) => invoke<RecentProject[]>("remove_recent_project", { path });

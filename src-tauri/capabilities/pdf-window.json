@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "pdf-window",
+  "description": "The detached PDF window of a project: events to and from its project window, its title, and closing itself (which docks the preview again).",
+  "windows": ["pdf-*"],
+  "permissions": [
+    "core:event:default",
+    "core:window:default",
+    "core:window:allow-set-title",
+    "core:window:allow-close",
+    "core:window:allow-destroy"
+  ]
+}

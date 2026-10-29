@@ -87,6 +87,10 @@ class SettingsStore {
   private data: AppSettingsData = structuredClone(DEFAULTS);
   private listeners = new Set<Listener>();
   private saveTimer = 0;
+  // Several windows (Welcome, projects, PDF) each hold a copy; changes saved by one are merged into the others.
+  private readonly origin = Math.random().toString(36).slice(2);
+  private dirtyKeys = new Set<Key>();
+  private dirtyProjects = new Set<string>();
 
   async load(): Promise<void> {
     try {
@@ -109,6 +113,7 @@ class SettingsStore {
     if (this.data[key] === value && typeof value !== "object") return;
     this.data[key] = value;
     this.data = sanitize(this.data);
+    this.dirtyKeys.add(key);
     this.scheduleSave();
     for (const l of this.listeners) l(key);
   }
@@ -116,6 +121,7 @@ class SettingsStore {
   /** Mutates an object-valued setting in place and notifies. */
   update<K extends Key>(key: K, fn: (value: AppSettingsData[K]) => void): void {
     fn(this.data[key]);
+    this.dirtyKeys.add(key);
     this.scheduleSave();
     for (const l of this.listeners) l(key);
   }
@@ -126,6 +132,7 @@ class SettingsStore {
 
   updateProject(root: string, fn: (m: ProjectMemory) => void): void {
     fn(this.project(root));
+    this.dirtyProjects.add(root);
     this.scheduleSave();
   }
 
@@ -143,13 +150,40 @@ class SettingsStore {
 
   async flush(): Promise<void> {
     clearTimeout(this.saveTimer);
+    this.dirtyKeys.clear();
+    this.dirtyProjects.clear();
     try {
       await ipc.saveSettings(this.data as unknown as ipc.Settings);
+      const { emit } = await import("@tauri-apps/api/event");
+      await emit(SETTINGS_EVENT, { origin: this.origin, data: this.data });
     } catch (e) {
       console.warn("Could not save settings", e);
     }
   }
+
+  /** Follows the settings other windows save (keys and projects changed here since the last save stay ours). */
+  syncAcrossWindows(): void {
+    void import("@tauri-apps/api/event")
+      .then(({ listen }) => listen<{ origin: string; data: Partial<AppSettingsData> }>(SETTINGS_EVENT, (e) => {
+        if (e.payload.origin !== this.origin) this.applyRemote(e.payload.data);
+      }))
+      .catch(() => { /* not running inside Tauri */ });
+  }
+
+  private applyRemote(remote: Partial<AppSettingsData>): void {
+    const merged = sanitize({ ...structuredClone(DEFAULTS), ...structuredClone(remote) } as AppSettingsData);
+    for (const k of this.dirtyKeys) (merged as unknown as Record<string, unknown>)[k] = this.data[k];
+    for (const root of this.dirtyProjects) {
+      const mine = this.data.projects[root];
+      if (mine) merged.projects[root] = mine;
+    }
+    const changed = (Object.keys(merged) as Key[]).filter((k) => JSON.stringify(merged[k]) !== JSON.stringify(this.data[k]));
+    this.data = merged;
+    for (const k of changed) for (const l of this.listeners) l(k);
+  }
 }
+
+const SETTINGS_EVENT = "gabetex://settings-changed";
 
 const clamp = (v: unknown, lo: number, hi: number, fallback: number) =>
   typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : fallback;

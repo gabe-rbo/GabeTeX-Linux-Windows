@@ -1,0 +1,107 @@
+/* Presentation windows: slides on black, and the presenter view — "a calm dark room for the speaker"
+   (PresenterView.swift). Always dark, whatever the system appearance. */
+html.presentation-window, html.presentation-window body { background: #000; }
+.presentation-layer { position: fixed; inset: 0; z-index: 10000; background: #000; }
+.ps-root { position: absolute; inset: 0; overflow: hidden; color: #fff; color-scheme: dark; user-select: none; -webkit-user-select: none; font-family: var(--font-ui); }
+.ps-root.ps-hide-cursor, .ps-root.ps-hide-cursor * { cursor: none !important; }
+.ps-root[data-mode="audience"] .ps-presenter, .ps-root[data-mode="presenter"] .ps-audience { display: none; }
+
+/* audience */
+.ps-audience { position: absolute; inset: 0; display: grid; place-items: center; background: #000; }
+.ps-slot { position: relative; overflow: hidden; }
+.ps-slot > canvas { position: absolute; inset: 0; display: block; }
+.ps-fade-in { animation: ps-fade 0.25s ease-out both; }
+@keyframes ps-fade { from { opacity: 0; } to { opacity: 1; } }
+.ps-blank { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.2s; background: #000; }
+.ps-blank.black { opacity: 1; background: #000; }
+.ps-blank.white { opacity: 1; background: #fff; }
+
+/* presenter */
+.ps-presenter {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  background: linear-gradient(to bottom, rgb(22, 23, 27), rgb(9, 9, 11));
+}
+.ps-caption { font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255, 255, 255, 0.46); white-space: nowrap; }
+.ps-header { display: flex; align-items: flex-start; gap: 24px; padding: 30px 44px 22px; flex: none; }
+.ps-readout { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ps-readout.end { align-items: flex-end; }
+.ps-timer, .ps-clock { font-family: var(--font-mono); font-size: 54px; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ps-timer { font-weight: 500; }
+.ps-timer.paused { color: #ff9f0a; }
+.ps-clock { font-weight: 300; color: rgba(255, 255, 255, 0.72); }
+.ps-counter { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: none; }
+.ps-count-line { display: flex; align-items: baseline; gap: 8px; font-variant-numeric: tabular-nums; }
+.ps-count { font-size: 44px; font-weight: 600; line-height: 1; }
+.ps-total { font-size: 24px; font-weight: 500; color: rgba(255, 255, 255, 0.5); }
+.ps-progress { width: 150px; height: 3px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); margin: 2px 0; overflow: hidden; }
+.ps-progress-fill { height: 100%; border-radius: 3px; background: rgba(255, 255, 255, 0.62); transition: width 0.2s; }
+.ps-display { font-size: 12px; font-weight: 500; color: rgba(255, 255, 255, 0.42); white-space: nowrap; }
+
+.ps-slides { flex: 1; min-height: 0; display: flex; align-items: flex-start; justify-content: center; gap: 40px; padding: 0 44px; }
+.ps-col { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.ps-caption-row, .ps-cap { height: 26px; display: flex; align-items: flex-start; gap: 10px; flex: none; }
+.ps-gap { height: 22px; flex: none; }
+.ps-frame { position: relative; flex: none; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5); }
+.ps-frame::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); pointer-events: none; }
+.ps-frame.next, .ps-frame.notes { border-radius: 10px; }
+.ps-frame.current, .ps-frame.next { cursor: pointer; }
+.ps-frame.next.ended { background: rgba(255, 255, 255, 0.05); box-shadow: none; outline: 1px dashed rgba(255, 255, 255, 0.14); outline-offset: -1px; cursor: default; }
+.ps-end { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: rgba(255, 255, 255, 0.5); font-size: 13px; font-weight: 500; }
+.ps-badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; background: rgba(255, 159, 10, 0.85); color: #000; font-size: 11px; font-weight: 600; }
+.ps-cover { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.84); border-radius: inherit; }
+.ps-cover-card { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 22px 28px; margin: 24px; border-radius: 18px; background: #1f1f1f; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); }
+.ps-cover-title { font-size: 17px; font-weight: 600; }
+.ps-cover-hint { font-size: 13px; color: rgba(255, 255, 255, 0.65); }
+.ps-no-notes { display: flex; flex-direction: column; gap: 6px; padding-top: 2px; max-width: 100%; }
+.ps-no-notes-title { font-size: 13px; font-weight: 500; color: rgba(255, 255, 255, 0.55); }
+.ps-no-notes-hint { font-size: 11.5px; color: rgba(255, 255, 255, 0.38); line-height: 1.4; }
+
+.ps-bar { flex: none; display: flex; align-items: center; justify-content: center; gap: 14px; padding: 22px 0 28px; }
+.ps-cluster {
+  display: flex; gap: 2px; padding: 5px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 4px 18px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(20px) saturate(160%); -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+.ps-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 42px; height: 32px; padding: 0 10px;
+  border: 0; border-radius: 999px; background: transparent; color: #fff; font: 500 13px var(--font-ui); cursor: pointer;
+  transition: background 0.14s;
+}
+.ps-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.09); }
+.ps-btn:active:not(:disabled) { background: rgba(255, 255, 255, 0.2); }
+.ps-btn:disabled { color: rgba(255, 255, 255, 0.3); cursor: default; }
+.ps-btn.on { background: rgba(255, 159, 10, 0.9); color: #000; }
+.ps-btn.wide svg:last-child { opacity: 0.55; }
+.ps-end-btn {
+  display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 16px; border: 0; border-radius: 999px;
+  background: #e5342b; color: #fff; font: 600 14px var(--font-ui); cursor: pointer; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 4px 16px rgba(229, 52, 43, 0.35);
+}
+.ps-end-btn:hover { background: #f03d33; }
+.ps-end-btn:active { background: #c92a22; }
+
+.ps-menu {
+  position: absolute; z-index: 5; min-width: 190px; padding: 5px; border-radius: 14px; color: #fff;
+  background: rgba(40, 40, 44, 0.92); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.14), 0 12px 40px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+}
+.ps-menu-header { padding: 6px 10px 4px; font-size: 11px; font-weight: 600; color: rgba(255, 255, 255, 0.5); }
+.ps-menu-item { display: flex; align-items: center; gap: 6px; width: 100%; height: 28px; padding: 0 10px 0 6px; border: 0; border-radius: 8px; background: transparent; color: inherit; font: 13px var(--font-ui); text-align: left; cursor: pointer; }
+.ps-menu-item:hover { background: #0a84ff; }
+.ps-check { width: 16px; display: inline-grid; place-items: center; }
+
+.ps-goto { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.4); pointer-events: none; }
+.ps-goto[hidden] { display: none; }
+.ps-goto-card {
+  display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 28px 36px; border-radius: 30px;
+  background: rgba(30, 30, 34, 0.82); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 20px 60px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+}
+.ps-goto-line { display: flex; align-items: baseline; gap: 10px; font-family: var(--font-mono); }
+.ps-goto-digits { font-size: 64px; font-weight: 600; line-height: 1; }
+.ps-goto-total { font-size: 26px; font-weight: 500; color: rgba(255, 255, 255, 0.5); }
+.ps-goto .ps-slot { border-radius: 8px; }
+.ps-goto-hint { font-size: 13px; color: rgba(255, 255, 255, 0.6); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ps-blank, .ps-progress-fill { transition: none; }
+}

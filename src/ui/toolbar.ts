@@ -8,6 +8,17 @@ import type { Workspace } from "../app/workspace";
 import { h, setText, toggleClass } from "./dom";
 import { icon } from "./icons";
 import { popupMenu } from "./overlay";
+import { setWindowTitle } from "../app/windows";
+import type { PresentationLink } from "../present/launch";
+
+/** The project's separate windows, attached after the toolbar is built (PDF window, presentation). */
+export interface ToolbarWindows {
+  presentation: PresentationLink;
+  isPdfDetached(): boolean;
+  /** False without separate windows (browser mock): the button is PDF Only then. */
+  canDetach(): boolean;
+  togglePdfWindow(): void;
+}
 
 export interface ToolbarActions {
   toggleSidebar(): void;
@@ -16,7 +27,8 @@ export interface ToolbarActions {
   toggleIssues(): void;
 }
 
-export function createToolbar(ws: Workspace, actions: ToolbarActions): { el: HTMLElement; sidebarButton: HTMLElement; destroy(): void } {
+export function createToolbar(ws: Workspace, actions: ToolbarActions): { el: HTMLElement; sidebarButton: HTMLElement; attachWindows(w: ToolbarWindows): void; destroy(): void } {
+  let windows: ToolbarWindows | null = null;
   const title = h("div", { class: "tb-title", text: ws.name });
   const subtitle = h("div", { class: "tb-subtitle" });
   const sidebarButton = h("button", { class: "glass-circle tb-sidebar", title: t("Hide Sidebar"), attrs: { "aria-label": t("Hide Sidebar") } }, icon("sidebar", 17));
@@ -31,12 +43,26 @@ export function createToolbar(ws: Workspace, actions: ToolbarActions): { el: HTM
   const pdfOnly = h("button", { class: "tb-toggle" }, icon("detach", 17));
   const issues = h("button", { class: "tb-toggle", title: t("Show or hide the Issues panel (⇧⌘M)"), attrs: { "aria-label": t("Issues panel") } }, icon("warning", 18));
   const group = h("div", { class: "glass-capsule tb-group" }, live, preview, pdfOnly, issues);
+  // Present (Beamer only): click presents from the first slide (or ends); the chevron also offers the current slide.
+  const presentMain = h("button", { class: "tb-present-main" }, icon("playRect", 17), h("span", { text: t("Present") }));
+  const presentMore = h("button", { class: "tb-present-more", title: t("Present"), attrs: { "aria-label": t("Present"), "aria-haspopup": "menu" } }, icon("chevronDown", 10));
+  const present = h("div", { class: "glass-capsule tb-present" }, presentMain, presentMore);
+  present.hidden = true;
+  presentMain.addEventListener("click", () => windows?.presentation.toggle());
+  presentMore.addEventListener("click", () => {
+    const p = windows?.presentation;
+    if (!p) return;
+    popupMenu([
+      { title: t("Present from Beginning"), action: () => void p.present(false) },
+      { title: t("Present from Current Slide"), action: () => void p.present(true) },
+    ], presentMore, { align: "end", minWidth: 220 });
+  });
 
   compile.addEventListener("click", () => ws.compile());
   stop.addEventListener("click", () => ws.stopCompile());
   live.addEventListener("click", () => settings.set("liveCompile", !settings.get("liveCompile")));
   preview.addEventListener("click", () => actions.togglePreview());
-  pdfOnly.addEventListener("click", () => actions.togglePdfOnly());
+  pdfOnly.addEventListener("click", () => (windows?.canDetach() ? windows.togglePdfWindow() : actions.togglePdfOnly()));
   issues.addEventListener("click", () => actions.toggleIssues());
   engine.addEventListener("click", () => {
     const pick = (e: Engine | undefined) => ws.setEngineOverride(e);
@@ -50,17 +76,29 @@ export function createToolbar(ws: Workspace, actions: ToolbarActions): { el: HTM
   const el = h("header", { class: "toolbar" },
     h("div", { class: "tb-leading" }, h("div", { class: "tb-titles" }, title, subtitle)),
     h("div", { class: "tb-spacer" }),
-    h("div", { class: "tb-trailing" }, compile, stop, engine, group));
+    h("div", { class: "tb-trailing" }, compile, stop, present, engine, group));
 
   const renderTitle = () => {
     setText(subtitle, ws.current ? ws.relative(ws.current) : "");
-    document.title = ws.current ? `${ws.name} — ${ws.relative(ws.current)}` : ws.name;
+    setWindowTitle(ws.current ? `${ws.name} — ${ws.relative(ws.current)}` : ws.name);
   };
   const renderCompile = () => {
     const compiling = ws.isCompiling;
     toggleClass(compile, "busy", compiling);
     compile.disabled = !ws.mainFile;
     stop.disabled = !compiling;
+  };
+  const renderPresent = () => {
+    const p = windows?.presentation;
+    present.hidden = !p || !(p.isPresentationDocument || p.presenting);
+    if (!p || present.hidden) return;
+    const can = p.canPresent || p.presenting;
+    presentMain.disabled = !can;
+    presentMore.disabled = !p.canPresent || p.presenting;
+    toggleClass(present, "on", p.presenting);
+    const help = p.presenting ? t("End Presentation") : p.canPresent ? t("Present the slides full screen (⌥⌘↩)") : t("Compile the document to present it");
+    presentMain.title = help;
+    presentMain.setAttribute("aria-label", p.presenting ? t("End Presentation") : t("Present"));
   };
   const renderEngine = () => setText(engineLabel, engineName(ws.effectiveEngine));
   const renderToggles = () => {
@@ -71,11 +109,22 @@ export function createToolbar(ws: Workspace, actions: ToolbarActions): { el: HTM
     toggleClass(preview, "on", previewOn);
     preview.disabled = ws.pdfOnly;
     preview.title = t("Show or hide the PDF preview (⌥⌘P)");
-    toggleClass(pdfOnly, "on", ws.pdfOnly);
-    pdfOnly.replaceChildren(icon(ws.pdfOnly ? "attach" : "detach", 17));
-    const pdfTitle = ws.pdfOnly ? t("Show the editor again") : t("Maximize the PDF preview");
+    const detached = !!windows?.isPdfDetached();
+    if (detached) {
+      preview.disabled = true;
+      preview.title = t("The PDF preview is in a separate window");
+      toggleClass(preview, "on", true);
+    }
+    const multi = !!windows?.canDetach();
+    const pdfOn = multi ? detached : ws.pdfOnly;
+    toggleClass(pdfOnly, "on", pdfOn);
+    pdfOnly.replaceChildren(icon(pdfOn ? "attach" : "detach", 17));
+    const pdfTitle = multi
+      ? (detached ? t("Attach PDF to Project Window") : t("Open PDF in Separate Window"))
+      : (ws.pdfOnly ? t("Show the editor again") : t("Maximize the PDF preview"));
     pdfOnly.title = pdfTitle;
     pdfOnly.setAttribute("aria-label", pdfTitle);
+    renderPresent();
     toggleClass(issues, "on", settings.get("showIssues"));
     issues.replaceChildren(icon(ws.errorCount > 0 ? "warningFill" : "warning", 18));
   };
@@ -83,6 +132,7 @@ export function createToolbar(ws: Workspace, actions: ToolbarActions): { el: HTM
   const offs = [
     ws.events.on("tabs", renderTitle),
     ws.events.on(["compile", "main"], renderCompile),
+    ws.events.on(["compile", "pdf"], renderPresent),
     ws.events.on(["engine", "main"], renderEngine),
     ws.events.on(["layout", "diagnostics"], renderToggles),
     settings.subscribe(() => { renderToggles(); renderEngine(); }, ["liveCompile", "showPreview", "showIssues", "defaultEngine"]),
@@ -91,5 +141,9 @@ export function createToolbar(ws: Workspace, actions: ToolbarActions): { el: HTM
   renderCompile();
   renderEngine();
   renderToggles();
-  return { el, sidebarButton, destroy: () => offs.forEach((f) => f()) };
+  return {
+    el, sidebarButton,
+    attachWindows: (w) => { windows = w; renderToggles(); },
+    destroy: () => offs.forEach((f) => f()),
+  };
 }

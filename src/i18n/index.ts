@@ -48,6 +48,12 @@ export function t(key: string, ...args: Array<string | number>): string {
  * Strings that differ from the Mac app (Linux/Windows wording) with their pt-BR translation. English is the key.
  */
 const EXTRA: Record<string, string> = {
+  "Cut": "Recortar",
+  "Copy": "Copiar",
+  "Paste": "Colar",
+  "Select All": "Selecionar Tudo",
+  "Go to Definition": "Ir para a Definição",
+  "Open in Default App": "Abrir no Aplicativo Padrão",
   "Reveal in File Manager": "Mostrar no Gerenciador de Arquivos",
   "Show PDF in File Manager": "Mostrar PDF no Gerenciador de Arquivos",
   "Install TeX Live or MiKTeX to compile documents.": "Instale o TeX Live ou o MiKTeX para compilar documentos.",

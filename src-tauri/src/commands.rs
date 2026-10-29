@@ -3,6 +3,7 @@ use crate::core::completion::{
 };
 use crate::core::compiler::{self, LaTeXCompiler, Purpose};
 use crate::core::distribution;
+use crate::core::fileops;
 use crate::core::log_parser::ShadowPathMapper;
 use crate::core::project_index::{build_project_analysis, build_project_index, parent_dir, standardize, to_native, ProjectOptions};
 use crate::core::settings::{self, TextFormat};
@@ -130,6 +131,9 @@ pub struct CompletionItem {
     pub detail: Option<String>,
     /// Snippet syntax, e.g. `\\frac{${1:num}}{${2:den}}`.
     pub insert_text: String,
+    /// Providing package (`amsmath`...), shown as a badge in the completion list.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -372,7 +376,7 @@ fn complete_blocking(root: &str, path: &str, text: &str, line: u32, column: u32)
 }
 
 fn to_ipc_item(item: CompletionEngineItem) -> CompletionItem {
-    CompletionItem { label: item.label, kind: item.kind.as_str().to_string(), detail: item.detail, insert_text: item.insert_text }
+    CompletionItem { label: item.label, kind: item.kind.as_str().to_string(), detail: item.detail, insert_text: item.insert_text, package: item.package }
 }
 
 #[tauri::command]
@@ -534,4 +538,115 @@ pub async fn read_pdf(path: String) -> CmdResult<tauri::ipc::Response> {
         Ok(tauri::ipc::Response::new(bytes))
     })
     .await
+}
+
+// ---- file operations (sidebar context menu; see core/fileops.rs) --------------------------------------
+
+#[tauri::command]
+pub async fn create_file(dir: String, name: String) -> CmdResult<String> {
+    blocking(move || fileops::create_file(&dir, &name)).await
+}
+
+#[tauri::command]
+pub async fn create_folder(dir: String, name: String) -> CmdResult<String> {
+    blocking(move || fileops::create_folder(&dir, &name)).await
+}
+
+#[tauri::command]
+pub async fn rename_path(path: String, name: String) -> CmdResult<String> {
+    blocking(move || fileops::rename(&path, &name)).await
+}
+
+#[tauri::command]
+pub async fn duplicate_path(path: String) -> CmdResult<String> {
+    blocking(move || fileops::duplicate(&path)).await
+}
+
+#[tauri::command]
+pub async fn move_to_trash(path: String) -> CmdResult<()> {
+    blocking(move || fileops::move_to_trash(&path)).await
+}
+
+#[tauri::command]
+pub async fn open_in_default_app(path: String) -> CmdResult<()> {
+    blocking(move || fileops::open_in_default_app(&path)).await
+}
+
+/// Mac `cleanAuxiliaryFiles`: cancels the build and drops the shadow workspace. Like the Mac app it never deletes
+/// anything inside the project folder (a kept `.bbl` for an arXiv upload is the user's file). Returns 0.
+#[tauri::command]
+pub async fn clean_auxiliary_files(root: String) -> CmdResult<usize> {
+    blocking(move || {
+        compiler::cancel_compile(&root, None);
+        let shadow = Path::new(&compiler::default_shadow_root()).join(compiler::ShadowWorkspace::identifier(&root));
+        compiler::ShadowWorkspace::new(&root, &shadow.to_string_lossy()).remove();
+        Ok(0)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn remove_recent_project(path: String) -> CmdResult<Vec<RecentProject>> {
+    blocking(move || settings::remove_recent_project(&path)).await
+}
+
+// MARK: open_url (PDF links)
+
+/// Accepts only `http:`, `https:` and `mailto:` URLs without whitespace or control characters.
+fn checked_url(url: &str) -> Result<&str, String> {
+    let url = url.trim();
+    let scheme_ok = ["http://", "https://", "mailto:"].iter().any(|s| {
+        url.len() > s.len() && url.get(..s.len()).is_some_and(|p| p.eq_ignore_ascii_case(s))
+    });
+    if !scheme_ok || url.len() > 4096 || url.chars().any(|c| c.is_control() || c.is_whitespace()) {
+        return Err("Only http, https and mailto links can be opened.".to_string());
+    }
+    Ok(url)
+}
+
+/// Opens a link of the PDF in the system browser / mail client (scheme allowlist, no shell involved).
+#[tauri::command]
+pub async fn open_url(url: String) -> CmdResult<()> {
+    blocking(move || {
+        use std::process::{Command, Stdio};
+        let url = checked_url(&url)?;
+        let attempts: Vec<(&str, Vec<&str>)> = if cfg!(windows) {
+            vec![("rundll32", vec!["url.dll,FileProtocolHandler", url])]
+        } else if cfg!(target_os = "macos") {
+            vec![("open", vec![url])]
+        } else {
+            vec![("xdg-open", vec![url]), ("gio", vec!["open", url])]
+        };
+        let mut last = String::new();
+        for (program, args) in attempts {
+            match Command::new(program).args(&args).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn() {
+                Ok(mut child) => {
+                    std::thread::spawn(move || {
+                        let _ = child.wait();
+                    });
+                    return Ok(());
+                }
+                Err(e) => last = format!("Could not run {program}: {e}"),
+            }
+        }
+        Err(last)
+    })
+    .await
+}
+
+#[cfg(test)]
+mod open_url_tests {
+    use super::checked_url;
+
+    #[test]
+    fn allows_only_web_and_mail() {
+        assert!(checked_url("https://example.com/a?b=c&d=e").is_ok());
+        assert!(checked_url("HTTP://example.com").is_ok());
+        assert!(checked_url("mailto:me@example.com").is_ok());
+        assert!(checked_url("file:///etc/passwd").is_err());
+        assert!(checked_url("javascript:alert(1)").is_err());
+        assert!(checked_url("https://a b").is_err());
+        assert!(checked_url("https://").is_err());
+        assert!(checked_url("-oProxyCommand=x").is_err());
+    }
 }

@@ -12,12 +12,13 @@
   "app": {
     "windows": [
       {
-        "label": "main",
-        "title": "GabeTeX",
-        "width": 1280,
-        "height": 800,
-        "minWidth": 900,
-        "minHeight": 600
+        "label": "welcome",
+        "title": "Welcome to GabeTeX",
+        "width": 700,
+        "height": 450,
+        "resizable": false,
+        "maximizable": false,
+        "center": true
       }
     ],
     "security": { "csp": null }

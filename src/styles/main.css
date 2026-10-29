@@ -676,3 +676,5 @@ input:focus-visible, select:focus-visible { outline-offset: 0; }
 /* SF Symbols in the sidebar are larger and lighter than the 16 px glyphs. */
 .tree-row .tree-icon { width: 18px; height: 18px; }
 .tree-row .tree-icon path { stroke-width: 1.4; }
+
+.tree-rename { flex: 1; min-width: 0; font: inherit; color: var(--text); background: var(--bg, transparent); border: 1px solid var(--accent); border-radius: 4px; padding: 0 4px; outline: none; }

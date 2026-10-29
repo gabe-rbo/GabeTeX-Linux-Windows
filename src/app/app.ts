@@ -13,6 +13,10 @@ import { alertDialog, isModalOpen, closeMenu } from "../ui/overlay";
 import { openLabelEditor } from "../ui/labelEditor";
 import { showStatistics } from "../ui/statistics";
 import { dirname, basename } from "../ui/dom";
+import {
+  OPEN_FILE_EVENT, WELCOME_SIZE, closeWelcomeWindow, isMultiWindow, openProjectWindow, projectWindowCount, setWindowTitle,
+  showWelcomeWindow, windowRole,
+} from "./windows";
 
 /** The default key CodeMirror uses for each editor action (replayed into the editor from the palette). */
 const EDITOR_KEYS: Record<EditorAction, { key: string; code: string; shift?: boolean }> = {
@@ -45,8 +49,45 @@ export class App implements CommandHost {
   async start(): Promise<void> {
     const params = new URLSearchParams(location.search);
     const project = params.get("project");
-    if (project) await this.openProject(project);
+    const role = windowRole();
+    if (role === "welcome") document.documentElement.classList.add("welcome-window");
+    if (role === "project" || role === "legacy") void this.handleWindowClose();
+    if (role === "project") void this.listenForOpenFile();
+    if (project) await this.openProject(project, params.get("file") ?? undefined);
     else this.showWelcome();
+  }
+
+  /** Unsaved changes are asked about before the window closes; its PDF and presentation windows close with it. */
+  private async handleWindowClose(): Promise<void> {
+    try {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      await getCurrentWindow().onCloseRequested(async (event) => {
+        if (isModalOpen()) { event.preventDefault(); return; }
+        if (this.project && !(await this.project.confirmDiscard())) { event.preventDefault(); return; }
+        if (this.project) {
+          await this.project.closeAuxiliaryWindows();
+          this.project.destroy();
+          this.project = null;
+        }
+        await settings.flush();
+        // Closing the last project window brings the Welcome window back (the app quits when that closes).
+        if (windowRole() === "project" && (await projectWindowCount()) <= 1) await showWelcomeWindow().catch(() => {});
+      });
+    } catch {
+      /* not running inside Tauri */
+    }
+  }
+
+  private async listenForOpenFile(): Promise<void> {
+    try {
+      const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+      await getCurrentWebviewWindow().listen<{ file?: string }>(OPEN_FILE_EVENT, (e) => {
+        const file = e.payload.file;
+        if (file) void this.project?.ws.open(file).then(() => this.project?.ws.editor?.focus());
+      });
+    } catch {
+      /* not running inside Tauri */
+    }
   }
 
   // ---- routing -----------------------------------------------------------------------------------------------
@@ -54,7 +95,7 @@ export class App implements CommandHost {
   private showWelcome(): void {
     this.project?.destroy();
     this.project = null;
-    document.title = "GabeTeX";
+    setWindowTitle(windowRole() === "welcome" ? t("Welcome to GabeTeX") : "GabeTeX");
     if (!this.welcomeView) {
       this.welcomeView = createWelcome(this.root, {
         newProject: () => this.newProject(),
@@ -65,13 +106,18 @@ export class App implements CommandHost {
     } else this.welcomeView.refresh();
   }
 
-  /** Opens a project folder (optionally a file in it), replacing the current one after asking about unsaved work. */
+  /**
+   * Opens a project folder (optionally a file in it). With separate windows (Mac parity) every project has its own
+   * window: an open one is brought forward, a new one opens, and Welcome closes. In the single-window mode (browser
+   * mock) the project replaces the current one after asking about unsaved work.
+   */
   async openProject(path: string, file?: string): Promise<void> {
     if (this.project) {
       if (this.project.ws.root === path) {
         if (file) await this.project.ws.open(file);
         return;
       }
+      if (isMultiWindow()) { await this.openInWindow(path, file); return; }
       if (!(await this.project.confirmDiscard())) return;
     }
     let info: ipc.ProjectInfo;
@@ -79,7 +125,20 @@ export class App implements CommandHost {
       info = await ipc.openProject(path);
     } catch (e) {
       await alertDialog({ title: t("Could not open “%@”", basename(path)), message: String(e) });
+      if (windowRole() === "project" && !this.project) await this.closeEmptyProjectWindow();
       return;
+    }
+    if (windowRole() === "welcome") {
+      try {
+        await openProjectWindow(info.root, info.name, file);
+        await settings.flush();
+        await closeWelcomeWindow();
+        return;
+      } catch (e) {
+        // No second window: grow this one and show the project in it.
+        console.warn("Project window unavailable", e);
+        await this.growWelcomeWindow();
+      }
     }
     if (file) info = { ...info, rootFile: info.rootFile ?? file };
     this.project?.destroy();
@@ -87,11 +146,45 @@ export class App implements CommandHost {
     this.welcomeView = null;
     const { ProjectView } = await import("../ui/project");
     const view = new ProjectView(info);
+    view.commandRunner = (id) => {
+      const cmd = command(id);
+      if (cmd?.isEnabled(this)) cmd.run(this);
+    };
     this.project = view;
     this.root.appendChild(view.el);
     view.appear();
     await view.whenReady().catch((e) => console.error(e));
     if (file && this.project === view) await view.ws.open(file);
+  }
+
+  /** Opens another project in its own window (or brings its window forward). */
+  private async openInWindow(path: string, file?: string): Promise<void> {
+    try {
+      const info = await ipc.openProject(path);
+      await openProjectWindow(info.root, info.name, file);
+    } catch (e) {
+      await alertDialog({ title: t("Could not open “%@”", basename(path)), message: String(e) });
+    }
+  }
+
+  /** A project window whose folder could not be opened closes (Welcome comes back when it was the last). */
+  private async closeEmptyProjectWindow(): Promise<void> {
+    if ((await projectWindowCount()) <= 1) await showWelcomeWindow().catch(() => {});
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().destroy().catch(() => {});
+  }
+
+  private async growWelcomeWindow(): Promise<void> {
+    document.documentElement.classList.remove("welcome-window");
+    try {
+      const { getCurrentWindow, LogicalSize } = await import("@tauri-apps/api/window");
+      const w = getCurrentWindow();
+      await w.setResizable(true);
+      await w.setSize(new LogicalSize(Math.max(WELCOME_SIZE.width, 1320), Math.max(WELCOME_SIZE.height, 840)));
+      await w.center();
+    } catch {
+      /* keep the size */
+    }
   }
 
   private async closeProject(): Promise<void> {
@@ -222,6 +315,7 @@ export class App implements CommandHost {
   setEngine(engine: Engine | undefined): void { this.ws?.setEngineOverride(engine); }
   setMainDocument(): void { const p = this.ws?.current; if (p) this.ws?.setMainFile(p); }
   automaticMainDocument(): void { this.ws?.setMainFile(undefined); }
+  cleanAuxiliaryFiles(): void { void this.ws?.cleanAuxiliaryFiles(); }
 
   showInPDF(): void {
     const ws = this.ws;
@@ -230,6 +324,18 @@ export class App implements CommandHost {
 
   revealPDF(): void { const p = this.ws?.pdfPath; if (p) this.ws?.reveal(p); }
   nextIssue(forward: boolean): void { this.ws?.goToNextIssue(forward); }
-  welcome(): void { void this.closeProject(); }
+  welcome(): void {
+    if (isMultiWindow() && windowRole() !== "welcome") void showWelcomeWindow().catch(() => void this.closeProject());
+    else void this.closeProject();
+  }
+
+  // ---- separate windows ---------------------------------------------------------------------------------------
+
+  canDetachPdf(): boolean { return isMultiWindow() && !!this.project; }
+  isPdfDetached(): boolean { return !!this.project?.pdfLink?.detached; }
+  togglePdfWindow(): void { this.project?.togglePdfWindow(); }
+  canPresent(): boolean { return !!this.project?.presentation.canPresent; }
+  isPresenting(): boolean { return !!this.project?.presentation.presenting; }
+  togglePresentation(): void { this.project?.presentation.toggle(); }
   openSettings(pane?: string): void { void import("../ui/settingsView").then((m) => m.openSettings(pane)); }
 }

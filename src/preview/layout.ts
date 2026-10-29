@@ -84,3 +84,52 @@ export function resolveAnchor(pages: readonly PageBox[], scale: number, anchor: 
   const dy = index === anchor.index ? anchor.dy : -MARGIN_TOP;
   return { x: p.x + anchor.dx * scale, y: p.y + dy * scale };
 }
+
+// ---- Crisp rendering at high zoom: only the visible part of a huge page is rasterised ----
+
+/** A rectangle in CSS px relative to the top-left of a page. */
+export interface Region { x: number; y: number; w: number; h: number }
+
+export const regionContains = (outer: Region, inner: Region): boolean =>
+  inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.w <= outer.x + outer.w && inner.y + inner.h <= outer.y + outer.h;
+
+/** The part of page `p` inside the view rectangle (document px), or null when the page is off screen. */
+export function visiblePart(p: PageBox, viewX: number, viewY: number, viewW: number, viewH: number): Region | null {
+  const x0 = Math.max(0, viewX - p.x);
+  const y0 = Math.max(0, viewY - p.y);
+  const x1 = Math.min(p.cw, viewX + viewW - p.x);
+  const y1 = Math.min(p.ch, viewY + viewH - p.y);
+  return x1 > x0 && y1 > y0 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
+}
+
+/**
+ * The region to rasterise for a page too big for one canvas: the visible part plus as much margin (up to 40 % of
+ * the view on each side) as fits `maxPixels` at pixel ratio `ratio`. Integer CSS px, clamped to the page.
+ */
+export function tileRegion(visible: Region, cw: number, ch: number, viewW: number, viewH: number, ratio: number, maxPixels: number): Region {
+  let m = 0.4;
+  let region: Region = { x: 0, y: 0, w: 0, h: 0 };
+  for (let i = 0; i < 10; i++) {
+    const mx = Math.round(viewW * m);
+    const my = Math.round(viewH * m);
+    const x0 = Math.max(0, Math.floor(visible.x - mx));
+    const y0 = Math.max(0, Math.floor(visible.y - my));
+    const x1 = Math.min(cw, Math.ceil(visible.x + visible.w + mx));
+    const y1 = Math.min(ch, Math.ceil(visible.y + visible.h + my));
+    region = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    if (region.w * region.h * ratio * ratio <= maxPixels) return region;
+    m *= 0.55;
+  }
+  const x0 = Math.max(0, Math.floor(visible.x));
+  const y0 = Math.max(0, Math.floor(visible.y));
+  return { x: x0, y: y0, w: Math.min(cw, Math.ceil(visible.x + visible.w)) - x0, h: Math.min(ch, Math.ceil(visible.y + visible.h)) - y0 };
+}
+
+/**
+ * Size of pdf.js's text / annotation layer container: it is laid out unrotated (raw page size) and turned by the
+ * `data-main-rotation` CSS, so for 90° / 270° pages its width is the displayed height.
+ */
+export function textLayerSize(rotation: number, cw: number, ch: number): { width: number; height: number } {
+  const turned = ((Math.round(rotation / 90) % 4) + 4) % 2 === 1;
+  return turned ? { width: ch, height: cw } : { width: cw, height: ch };
+}

@@ -17,6 +17,9 @@ import { createBanners } from "./banners";
 import { createStatusBar } from "./statusbar";
 import { createIssuesPanel } from "./issues";
 import { openQuickOpen } from "./palette";
+import { PdfWindowLink } from "../app/pdfLink";
+import { PresentationLink } from "../present/launch";
+import { isMultiWindow } from "../app/windows";
 
 export function editorSettings(): EditorSettings {
   return {
@@ -45,10 +48,18 @@ export class ProjectView {
   private toolbarSidebarSlot: HTMLElement;
   private cleanups: Array<() => void> = [];
   private ready: Promise<void>;
+  private layoutKey = "";
+  /** The detachable PDF window (only when this window may open others). */
+  pdfLink: PdfWindowLink | null = null;
+  /** Presentation mode (Beamer): toolbar button, windows, reloads. */
+  readonly presentation: PresentationLink;
+  /** Runs a command by id (set by the shell; used for shortcuts typed in the PDF window). */
+  commandRunner: (id: string) => void = () => {};
 
   constructor(info: ipc.ProjectInfo) {
     const ws = (this.ws = new Workspace(info));
     ws.ask = (o) => alertDialog(o);
+    this.presentation = new PresentationLink(ws, () => this.auxiliaryChanged());
 
     const sidebar = createSidebar(ws, { onOpen: (p) => void ws.open(p).then(() => ws.editor?.focus()) });
     const toolbar = createToolbar(ws, {
@@ -81,6 +92,12 @@ export class ProjectView {
     this.sidebarEl = h("div", { class: "sidebar-wrap" }, sidebar.el, this.sidebarResizer);
     this.toolbarSidebarSlot = h("div", { class: "tb-sidebar-slot" });
     toolbar.el.prepend(this.toolbarSidebarSlot);
+    toolbar.attachWindows?.({
+      presentation: this.presentation,
+      isPdfDetached: () => !!this.pdfLink?.detached,
+      canDetach: () => isMultiWindow(),
+      togglePdfWindow: () => this.togglePdfWindow(),
+    });
 
     this.el = h("div", { class: "project-root" },
       this.sidebarEl,
@@ -140,8 +157,13 @@ export class ProjectView {
     ws.editor = editor;
     ws.preview = preview;
     this.cleanups.push(() => { editor.destroy(); preview.destroy(); });
+    if (isMultiWindow()) {
+      this.pdfLink = new PdfWindowLink(ws, preview, { changed: () => this.auxiliaryChanged(), runCommand: (id) => this.commandRunner(id) });
+    }
 
     await ws.start();
+    await this.pdfLink?.start().catch((e) => console.warn(e));
+    await this.presentation.start().catch((e) => console.warn(e));
     // Restore the tabs of the last session, else open the main document.
     const memory = settings.project(ws.root);
     const exists = new Set(ws.flatFiles);
@@ -160,8 +182,10 @@ export class ProjectView {
   // ---- layout ------------------------------------------------------------------------------------------------
 
   private applyLayout(): void {
-    const showPreview = settings.get("showPreview") || this.ws.pdfOnly;
+    const detached = this.ws.pdfDetached;
+    const showPreview = (settings.get("showPreview") || this.ws.pdfOnly) && !detached;
     this.el.classList.toggle("no-preview", !showPreview);
+    this.el.classList.toggle("pdf-detached", detached);
     this.el.classList.toggle("pdf-only", this.ws.pdfOnly);
     this.el.classList.toggle("no-issues", !settings.get("showIssues"));
     const sidebar = settings.get("sidebarVisible");
@@ -178,6 +202,10 @@ export class ProjectView {
       btn.setAttribute("title", label);
       btn.setAttribute("aria-label", label);
     }
+    // Tell the toolbar and the panes, once per real change (re-applying on our own notification would loop).
+    const key = [showPreview, this.ws.pdfOnly, detached, settings.get("showIssues"), sidebar, settings.get("sidebarWidth"), settings.get("splitRatio"), settings.get("issuesHeight")].join("|");
+    if (key === this.layoutKey) return;
+    this.layoutKey = key;
     this.ws.events.emitSoon("layout");
   }
 
@@ -253,6 +281,7 @@ export class ProjectView {
   }
 
   togglePreview(): void {
+    if (this.pdfLink?.detached) { this.pdfLink.focus(); return; }
     if (this.ws.pdfOnly) { this.togglePdfOnly(); return; }
     settings.set("showPreview", !settings.get("showPreview"));
   }
@@ -266,6 +295,24 @@ export class ProjectView {
 
   toggleIssues(): void {
     settings.set("showIssues", !settings.get("showIssues"));
+  }
+
+  /** Open PDF in Separate Window / Attach PDF to Project Window; PDF Only when no window can be opened. */
+  togglePdfWindow(): void {
+    if (!this.pdfLink) { this.togglePdfOnly(); return; }
+    void this.pdfLink.toggle().then((ok) => { if (!ok) this.togglePdfOnly(); });
+  }
+
+  /** The PDF window or the presentation changed: re-layout and refresh the toolbar. */
+  private auxiliaryChanged(): void {
+    this.applyLayout();
+    this.ws.events.emit("layout");
+  }
+
+  /** The project window is closing: its PDF and presentation windows go with it. */
+  async closeAuxiliaryWindows(): Promise<void> {
+    await this.pdfLink?.closeWithProject().catch(() => {});
+    await this.presentation.closeWithProject().catch(() => {});
   }
 
   // ---- closing -----------------------------------------------------------------------------------------------
@@ -348,6 +395,9 @@ export class ProjectView {
   }
 
   destroy(): void {
+    void this.closeAuxiliaryWindows();
+    this.pdfLink?.dispose();
+    this.presentation.dispose();
     for (const c of this.cleanups.splice(0)) c();
     this.ws.dispose();
     this.el.remove();

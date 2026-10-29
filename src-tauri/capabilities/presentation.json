@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "presentation",
+  "description": "Presentation windows (slides and presenter view): full screen on a chosen display, focus, events between the two windows and the project, and closing both when the presentation ends.",
+  "windows": ["present-*", "presenter-*"],
+  "permissions": [
+    "core:event:default",
+    "core:window:default",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-set-fullscreen-on-monitor",
+    "core:window:allow-set-focus",
+    "core:window:allow-destroy"
+  ]
+}

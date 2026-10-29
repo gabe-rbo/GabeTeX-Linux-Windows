@@ -130,6 +130,12 @@ function createListView(view: EditorView): TooltipView {
           detail.textContent = item.detail;
           row.append(detail);
         }
+        if (item.package) {
+          const pkg = document.createElement("span");
+          pkg.className = "gx-completion-package";
+          pkg.textContent = item.package;
+          row.append(pkg);
+        }
         rows.push(row);
         frag.append(row);
       }
@@ -226,12 +232,59 @@ const dismiss = (view: EditorView) => {
   return true;
 };
 
+// MARK: Local fallbacks for Tab (never wait on a slow backend)
+
+/** The last backend answer, reusable while the typed text only extends its prefix on the same line. */
+interface Cached {
+  line: number;
+  /** Line text before `from`: when it is unchanged the completion context is the same. */
+  before: string;
+  fromCol: number;
+  prefix: string;
+  /** The backend range ended at the caret (the usual case). */
+  toAtCaret: boolean;
+  context: CompletionResponse["context"];
+  inMath: boolean;
+  items: readonly CompletionItem[];
+}
+
+/** The most used commands, so Tab completes `\sec` instantly even before the backend has answered once. */
+const CATALOG: ReadonlyArray<readonly [string, string, string?]> = [
+  ["\\section", "\\section{${1:title}}"], ["\\subsection", "\\subsection{${1:title}}"],
+  ["\\subsubsection", "\\subsubsection{${1:title}}"], ["\\paragraph", "\\paragraph{${1:title}}"],
+  ["\\chapter", "\\chapter{${1:title}}"], ["\\label", "\\label{${1:key}}"], ["\\ref", "\\ref{${1:key}}"],
+  ["\\eqref", "\\eqref{${1:key}}"], ["\\cite", "\\cite{${1:key}}"], ["\\begin", "\\begin{${1:environment}}"],
+  ["\\end", "\\end{${1:environment}}"], ["\\textbf", "\\textbf{${1:text}}"], ["\\textit", "\\textit{${1:text}}"],
+  ["\\emph", "\\emph{${1:text}}"], ["\\texttt", "\\texttt{${1:text}}"], ["\\footnote", "\\footnote{${1:text}}"],
+  ["\\frac", "\\frac{${1:num}}{${2:den}}"], ["\\sqrt", "\\sqrt{${1:x}}"], ["\\sum", "\\sum_{${1:i=1}}^{${2:n}}"],
+  ["\\int", "\\int_{${1:a}}^{${2:b}}"], ["\\alpha", "\\alpha"], ["\\beta", "\\beta"], ["\\gamma", "\\gamma"],
+  ["\\delta", "\\delta"], ["\\lambda", "\\lambda"], ["\\mathbb", "\\mathbb{${1:R}}"], ["\\mathbf", "\\mathbf{${1:x}}"],
+  ["\\includegraphics", "\\includegraphics{${1:file}}", "graphicx"], ["\\usepackage", "\\usepackage{${1:package}}"],
+  ["\\documentclass", "\\documentclass{${1:article}}"], ["\\input", "\\input{${1:file}}"],
+  ["\\include", "\\include{${1:file}}"], ["\\item", "\\item "], ["\\caption", "\\caption{${1:text}}"],
+  ["\\centering", "\\centering"], ["\\newcommand", "\\newcommand{\\${1:name}}{${2:definition}}"],
+  ["\\title", "\\title{${1:title}}"], ["\\author", "\\author{${1:name}}"], ["\\maketitle", "\\maketitle"],
+  ["\\tableofcontents", "\\tableofcontents"], ["\\bibliography", "\\bibliography{${1:file}}"],
+  ["\\url", "\\url{${1:url}}"], ["\\href", "\\href{${1:url}}{${2:text}}", "hyperref"],
+];
+
+/** Command completions from the built-in catalog (command prefixes only, `\` + at least one letter). */
+function catalogMatches(prefix: string): CompletionItem[] {
+  if (prefix.length < 2 || prefix[0] !== "\\") return [];
+  return CATALOG.filter(([label]) => label.startsWith(prefix))
+    .map(([label, insertText, pkg]) => ({ label, kind: "command" as const, insertText, ...(pkg ? { package: pkg } : {}) }));
+}
+
+/** How long Tab waits for the backend before using local data. */
+const TAB_WAIT_MS = 120;
+
 // MARK: Controller
 
 class Controller {
   timer: ReturnType<typeof setTimeout> | null = null;
   refreshQueued = false;
   seq = 0;
+  cached: Cached | null = null;
   constructor(readonly view: EditorView, readonly config: CompletionConfig) {}
 
   get triggerPending() { return this.timer !== null; }
@@ -292,7 +345,54 @@ class Controller {
     }
     if (mine !== this.seq || view.state !== state) return null;
     if (!res || !res.items.length || res.from > sel.head || res.to > state.doc.length || res.from < 0) return null;
+    this.remember(state, sel.head, res);
     return { state, res };
+  }
+
+  private remember(state: EditorState, head: number, res: CompletionResponse) {
+    const line = state.doc.lineAt(head);
+    if (res.from < line.from) { this.cached = null; return; }
+    const fromCol = res.from - line.from;
+    this.cached = {
+      line: line.number, before: line.text.slice(0, fromCol), fromCol, prefix: state.sliceDoc(res.from, head),
+      toAtCaret: res.to <= head, context: res.context, inMath: res.inMath, items: res.items,
+    };
+  }
+
+  /** A response for the caret derived from the last backend answer, or null when it does not apply. */
+  fromCache(state: EditorState): CompletionResponse | null {
+    const c = this.cached;
+    if (!c || !c.toAtCaret) return null;
+    const head = state.selection.main.head;
+    const line = state.doc.lineAt(head);
+    if (line.number !== c.line || line.text.slice(0, c.fromCol) !== c.before) return null;
+    const from = line.from + c.fromCol;
+    const typed = state.sliceDoc(from, head);
+    if (!typed.toLowerCase().startsWith(c.prefix.toLowerCase())) return null;
+    const p = typed.toLowerCase();
+    const items = c.items.filter((i) => i.label.toLowerCase().startsWith(p));
+    if (!items.length) return null;
+    return { from, to: head, prefix: typed, context: c.context, inMath: c.inMath, items };
+  }
+
+  /** The backend answer, but never later than TAB_WAIT_MS: cache or catalog answer meanwhile. */
+  async fetchForTab(state: EditorState): Promise<CompletionResponse | null> {
+    const local = this.fromCache(state);
+    if (local) { void this.fetch(); return local; }
+    const head = state.selection.main.head;
+    const timeout = new Promise<null>((r) => setTimeout(() => r(null), TAB_WAIT_MS));
+    const got = await Promise.race([this.fetch().then((g) => g?.res ?? null), timeout]);
+    if (got) return got;
+    if (this.view.state !== state) return null;
+    const line = state.doc.lineAt(head);
+    const col = head - line.from;
+    const start = commandPrefixStart(line.text, col);
+    if (start < 0) return null; // arguments (labels, citations, files) need the backend
+    const prefix = line.text.slice(start, col);
+    const items = catalogMatches(prefix);
+    if (!items.length) return null;
+    this.seq++; // the late backend answer must not open a popup under the user's hands
+    return { from: line.from + start, to: head, prefix, context: "command", inMath: false, items };
   }
 
   async trigger(manual: boolean, refresh = false) {
@@ -338,12 +438,12 @@ class Controller {
     if (!cmd && !isInCommandArgument(line.text, col)) return false;
     const triggerPending = this.triggerPending;
     this.cancelPending();
-    void this.fetch().then((got) => {
-      if (!got) {
+    void this.fetchForTab(state).then((res) => {
+      if (!res) {
         if (view.state === state) plainTab(view);
         return;
       }
-      const { res } = got;
+      if (view.state !== state) return;
       if (res.prefix.startsWith("\\") && res.prefix.length < 2) { plainTab(view); return; }
       const open: Open = { from: res.from, to: res.to, prefix: res.prefix, items: res.items, all: res.items, selected: 0, chosen: false };
       const choice = tabChoice(view.state, open);

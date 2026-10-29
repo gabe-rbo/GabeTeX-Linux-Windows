@@ -1,0 +1,16 @@
+/* Window-specific chrome: the fixed-size Welcome window and the toolbar's Present split button. */
+
+/* The Welcome window is exactly the size of the card (Mac: a small window with a hidden title bar). */
+html.welcome-window .welcome-root { padding: 0; background: var(--glass-bg-strong); }
+html.welcome-window .welcome-card { width: 100%; height: 100%; border-radius: 0; box-shadow: none; background: transparent; }
+html.welcome-window, html.welcome-window body { overflow: hidden; }
+
+/* Present (Beamer only): a glass split button. */
+.tb-present { display: inline-flex; align-items: center; height: 34px; padding: 0 2px; }
+.tb-present[hidden] { display: none; }
+.tb-present button { border: 0; background: transparent; color: var(--text); height: 30px; border-radius: var(--r-capsule); display: inline-flex; align-items: center; transition: background var(--t-fast); }
+.tb-present button:hover:not(:disabled) { background: var(--hover); }
+.tb-present button:disabled { opacity: 0.45; }
+.tb-present-main { gap: 6px; padding: 0 8px 0 9px; font-size: 12.5px; font-weight: 500; }
+.tb-present-more { width: 22px; justify-content: center; color: var(--text-2) !important; }
+.tb-present.on .tb-present-main { color: #fff; background: var(--accent); }

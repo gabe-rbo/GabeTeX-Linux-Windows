@@ -165,7 +165,7 @@ export function createWelcome(parent: HTMLElement, actions: WelcomeActions): { d
           { title: t("New Label…"), icon: "tag", action: () => openLabelEditor({ assignTo: r.path, onDone: render }) },
           { kind: "separator" },
           { title: t("Reveal in File Manager"), action: () => void ipc.revealInFileManager(r.path).catch(() => {}) },
-          { title: t("Remove from Recents"), action: () => { settings.update("hiddenRecents", (m) => { m[r.path] = r.lastOpened; }); render(); } },
+          { title: t("Remove from Recents"), action: () => { void ipc.removeRecentProject(r.path).then((list) => { recents = list; render(); }).catch(() => { settings.update("hiddenRecents", (m) => { m[r.path] = r.lastOpened; }); render(); }); } },
         ], { x: e.clientX, y: e.clientY });
       });
       frag.appendChild(row);
