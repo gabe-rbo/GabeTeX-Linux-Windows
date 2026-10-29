@@ -1,5 +1,8 @@
 # GabeTeX for Linux and Windows — implementation plan (internal)
 
+> Internal planning note of the Linux and Windows edition. References to `Sources/`, `Resources/` and `Tests/` (Swift)
+> point to the macOS repository, [GabeTeX-macOS](https://github.com/gabe-rbo/GabeTeX-macOS), the behavioural reference.
+
 GabeTeX stays **native on macOS** (SwiftUI + AppKit, untouched). Linux and Windows get a companion build of the
 same app, version **1.0.0**, that looks and behaves as close to the Mac app as possible while staying light and fast.
 
@@ -7,24 +10,24 @@ same app, version **1.0.0**, that looks and behaves as close to the Mac app as p
 
 - **Tauri 2** shell (Rust backend + the OS web view: WebView2 on Windows, WebKitGTK on Linux). No Electron,
   no bundled Chromium: installers stay ~5–10 MB, cold start well under a second.
-- **Rust core** (`CrossPlatform/src-tauri/src/core/`): a faithful port of the parts of `TeXCore` and `TeXToolchain`
+- **Rust core** (`src-tauri/src/core/`): a faithful port of the parts of `TeXCore` and `TeXToolchain`
   the UI needs. The Swift sources are the spec; port behaviour, not just names. Unit tests via `cargo test`,
   reusing `Tests/Fixtures/TeXToolchain` logs where possible.
-- **Frontend** (`CrossPlatform/src/`): Vite + TypeScript, **no UI framework** (plain DOM, tiny bundle).
+- **Frontend** (`src/`): Vite + TypeScript, **no UI framework** (plain DOM, tiny bundle).
   CodeMirror 6 for the editor, `@replit/codemirror-vim` for Vim mode, pdf.js for the PDF preview.
   CSS reproduces the macOS 26 Liquid Glass look (translucent sidebar, glass capsules/pills via
   `backdrop-filter`, SF-like system font stack, accent blue `#0A84FF`, Light/Dark via `prefers-color-scheme`).
 - Localization: English + Brazilian Portuguese, following the OS language; strings come from
-  `Resources/pt-BR.lproj/Localizable.strings` converted to `CrossPlatform/src/i18n/{en,pt-BR}.json`.
+  `Resources/pt-BR.lproj/Localizable.strings` converted to `src/i18n/{en,pt-BR}.json`.
 - Packaging: Linux `.AppImage` + `.deb`, Windows NSIS `.exe` (+ `.msi`). Release assets named
   `GabeTeX-linux-x86_64.AppImage`, `GabeTeX-linux-amd64.deb`, `GabeTeX-windows-x64-setup.exe`.
-- CI: `.github/workflows/cross-platform.yml` (ubuntu-22.04 + windows-latest: `cargo test`, `npm run build`,
+- CI: `.github/workflows/ci.yml` (ubuntu-22.04 + windows-latest: `cargo test`, `npm run build`,
   `tauri build`; uploads installers; attaches them to the GitHub release on `v*` tags).
 
 ## Directory layout
 
 ```
-CrossPlatform/
+GabeTeX-Linux-Windows/
   package.json  vite.config.ts  tsconfig.json  index.html
   src/            main.ts, ipc.ts (typed wrappers), ui/*, editor/*, preview/*, i18n/*, styles/*
   src-tauri/      Cargo.toml, tauri.conf.json, icons/, src/{main.rs, lib.rs, commands.rs, core/*}

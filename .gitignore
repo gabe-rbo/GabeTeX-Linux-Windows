@@ -1,5 +1,10 @@
-node_modules
-dist
-src-tauri/target
-src-tauri/gen
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
 public/pdfjs/
+.DS_Store
+claude/
+.agentwork/
+.bg/
+out/

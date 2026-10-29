@@ -1,4 +1,4 @@
-// Typed wrappers for every Tauri command in CrossPlatform/PLAN.md. Keep in sync with src-tauri/src/commands.rs.
+// Typed wrappers for every Tauri command in docs-dev/PLAN.md. Keep in sync with src-tauri/src/commands.rs.
 // Paths are absolute strings. Lines/columns are 1-based; columns are UTF-16 units.
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
