@@ -580,7 +580,7 @@ mod tests {
     use super::*;
 
     fn fixture(name: &str) -> String {
-        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../Tests/Fixtures/TeXToolchain").join(name);
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/TeXToolchain").join(name);
         String::from_utf8_lossy(&std::fs::read(&path).unwrap_or_else(|e| panic!("missing fixture {}: {e}", path.display()))).into_owned()
     }
 

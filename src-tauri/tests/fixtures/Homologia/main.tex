@@ -1,0 +1,27 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{tikz-cd}
+\usepackage[hidelinks]{hyperref}
+\usepackage{cleveref}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Teorema}[section]
+\newtheorem{lemma}[theorem]{Lema}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definição}
+
+\newcommand{\Z}{\mathbb{Z}}
+\DeclareMathOperator{\im}{im}
+
+\title{Notas de Homologia Simplicial}
+\author{Gabriel Ribeiro}
+
+\begin{document}
+\maketitle
+
+\input{sections/introducao}
+\input{sections/homologia}
+
+\bibliographystyle{plain}
+\bibliography{refs}
+\end{document}

@@ -1792,7 +1792,7 @@ mod tests {
     use std::time::Instant;
 
     fn fixtures_root() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../Tests/Fixtures/TeXToolchain")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/TeXToolchain")
     }
 
     fn fixture_log(name: &str) -> String {

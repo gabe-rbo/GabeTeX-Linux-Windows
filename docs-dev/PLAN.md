@@ -12,7 +12,7 @@ same app, version **1.0.0**, that looks and behaves as close to the Mac app as p
   no bundled Chromium: installers stay ~5–10 MB, cold start well under a second.
 - **Rust core** (`src-tauri/src/core/`): a faithful port of the parts of `TeXCore` and `TeXToolchain`
   the UI needs. The Swift sources are the spec; port behaviour, not just names. Unit tests via `cargo test`,
-  reusing `Tests/Fixtures/TeXToolchain` logs where possible.
+  reusing the logs in `src-tauri/tests/fixtures/TeXToolchain` (copied from the macOS repo) where possible.
 - **Frontend** (`src/`): Vite + TypeScript, **no UI framework** (plain DOM, tiny bundle).
   CodeMirror 6 for the editor, `@replit/codemirror-vim` for Vim mode, pdf.js for the PDF preview.
   CSS reproduces the macOS 26 Liquid Glass look (translucent sidebar, glass capsules/pills via

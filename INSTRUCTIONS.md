@@ -34,6 +34,8 @@ npm test                       # vitest
 (cd src-tauri && cargo test)   # unit tests + tests/e2e.rs (real compile; skipped without TeX/latexmk)
 ```
 
+Test fixtures (TeX logs and sample projects) live in `src-tauri/tests/fixtures/`, copied from the macOS repository.
+
 ## Packaging and release
 CI builds on `ubuntu-22.04` and `windows-latest`. Pushing a `v*` tag attaches the AppImage, `.deb`, NSIS `.exe` and
 `.msi` to the release. Keep the version in `package.json` and `src-tauri/tauri.conf.json` (and `Cargo.toml`) equal.

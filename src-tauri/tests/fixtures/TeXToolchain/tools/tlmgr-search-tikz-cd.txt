@@ -1,0 +1,3 @@
+tlmgr: package repository https://br.mirrors.cicku.me/ctan/systems/texlive/tlnet (verified)
+tikz-cd:
+	texmf-dist/tex/latex/tikz-cd/tikz-cd.sty

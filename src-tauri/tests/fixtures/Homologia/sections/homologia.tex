@@ -1,0 +1,28 @@
+% !TEX root = ../main.tex
+\section{Homologia}\label{sec:homologia}
+
+\begin{definition}\label{def:bordo}
+Seja $K$ um complexo simplicial. O operador bordo $\partial_n \colon C_n(K) \to C_{n-1}(K)$ é
+\begin{equation}\label{eq:bordo}
+  \partial_n [v_0, \dots, v_n] = \sum_{i=0}^{n} (-1)^i [v_0, \dots, \hat{v}_i, \dots, v_n].
+\end{equation}
+\end{definition}
+
+\begin{lemma}\label{lem:dd}
+$\partial_{n-1} \circ \partial_n = 0$.
+\end{lemma}
+
+\begin{proof}
+Segue de \eqref{eq:bordo}: cada face de codimensão dois aparece duas vezes com sinais opostos.
+\end{proof}
+
+\begin{theorem}
+$H_n(K) = \ker \partial_n / \im \partial_{n+1}$ é um $\Z$-módulo finitamente gerado.
+\end{theorem}
+
+\[
+\begin{tikzcd}
+  C_{n+1} \arrow[r, "\partial_{n+1}"] \arrow[d] & C_n \arrow[r, "\partial_n"] \arrow[d] & C_{n-1} \arrow[d] \\
+  D_{n+1} \arrow[r] & D_n \arrow[r] & D_{n-1}
+\end{tikzcd}
+\]

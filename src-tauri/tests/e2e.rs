@@ -67,7 +67,7 @@ fn copy_dir(from: &Path, to: &Path) {
 }
 
 fn repo() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
 }
 
 fn compiler(dist: &Distribution, name: &str) -> LaTeXCompiler {
@@ -223,7 +223,7 @@ fn cancellation_by_newer_compile_and_timeout() {
 fn bibtex_and_missing_package() {
     let d = need_tex!();
     let c = compiler(&d, "bib");
-    let fixtures = repo().join("Tests/Fixtures/TeXToolchain/projects");
+    let fixtures = repo().join("TeXToolchain/projects");
     let bib = scratch("bibtex");
     copy_dir(&fixtures.join("bibtex"), &bib);
     let r = c.compile(&req(&bib, &bib.join("main.tex"), Engine::Pdflatex, Purpose::Live));
@@ -260,7 +260,7 @@ fn bibtex_and_missing_package() {
 fn fixture_projects_diagnostics() {
     let d = need_tex!();
     let c = compiler(&d, "fixtures");
-    let fixtures = repo().join("Tests/Fixtures/TeXToolchain/projects");
+    let fixtures = repo().join("TeXToolchain/projects");
     for name in ["multifile", "missinginput", "runaway", "badboxes", "unicode"] {
         let dir = scratch(&format!("fx-{name}"));
         copy_dir(&fixtures.join(name), &dir);
@@ -476,7 +476,7 @@ fn examples_and_scratch_project() {
     let c = compiler(&d, "examples");
     // Shipped example: index, then a real build.
     let ex = scratch("homologia");
-    copy_dir(&repo().join("Examples/Homologia"), &ex);
+    copy_dir(&repo().join("Homologia"), &ex);
     let idx = build_project_index(&ex, &HashMap::new());
     assert_eq!(idx.root_file.as_deref(), Some(s(&ex.join("main.tex")).as_str()));
     assert!(!idx.outline.is_empty() && !idx.includes.is_empty());

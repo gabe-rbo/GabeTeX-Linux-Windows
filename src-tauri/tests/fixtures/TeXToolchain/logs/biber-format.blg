@@ -1,0 +1,16 @@
+[0] Config.pm:308> INFO - This is Biber 2.20
+[0] Config.pm:311> INFO - Logfile is 'main.blg'
+[52] biber:340> INFO - === Wed Oct 28, 2026, 18:00:12
+[66] Biber.pm:419> INFO - Reading 'main.bcf'
+[131] Biber.pm:979> INFO - Found 2 citekeys in bib section 0
+[143] Biber.pm:4425> INFO - Processing section 0
+[152] Biber.pm:4616> INFO - Looking for bibtex file 'refs.bib' for section 0
+[155] bibtex.pm:1713> INFO - LaTeX decoding ...
+[171] bibtex.pm:1518> INFO - Found BibTeX data source 'refs.bib'
+[176] Utils.pm:427> ERROR - BibTeX subsystem: /var/folders/xx/xxxxxxxxxxxxxxxxx_xxxx_xxxxxxx/T/biber_tmp_8Kq2/refs.bib_31337.utf8, line 8, syntax error: found "entry", expected end of entry ("}" or ")") (skipping to next "@")
+[183] Utils.pm:410> WARN - Datamodel: book entry 'hatcher' (refs.bib): Invalid field 'publisher' for entrytype 'book'
+[190] Utils.pm:410> WARN - I didn't find a database entry for 'nokey' (section 0)
+[214] bbl.pm:676> INFO - Writing 'main.bbl' with encoding 'UTF-8'
+[221] bbl.pm:779> INFO - Output to main.bbl
+[221] Biber.pm:133> INFO - WARNINGS: 2
+[221] Biber.pm:137> INFO - ERRORS: 1
