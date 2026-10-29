@@ -466,13 +466,12 @@ pub fn folder_identity(path: &str) -> Option<String> {
 /// Standardized spelling of a project path (no `.`/`..`/trailing separator), like `standardizedFileURL.path`.
 fn standard_path(path: &str) -> String {
     let std = lexically_standardized(path);
-    #[cfg(windows)]
-    {
-        if path.contains('\\') && !path.contains('/') {
-            return std.replace('/', "\\");
-        }
+    // Windows: always the native spelling, whatever mix of separators came in, so one project has one key.
+    if cfg!(windows) {
+        std.replace('/', "\\")
+    } else {
+        std
     }
-    std
 }
 
 /// Comparison key: case-insensitive on Windows.
@@ -1037,8 +1036,12 @@ mod tests {
 
     #[test]
     fn config_dir_rules() {
-        let e = env_of(&[("XDG_CONFIG_HOME", "/x/cfg"), ("HOME", "/home/u")]);
-        assert_eq!(linux_config_dir(&e), Some(PathBuf::from("/x/cfg/GabeTeX")));
+        // The XDG rules use Unix absolute paths, which are not absolute on Windows.
+        #[cfg(unix)]
+        {
+            let e = env_of(&[("XDG_CONFIG_HOME", "/x/cfg"), ("HOME", "/home/u")]);
+            assert_eq!(linux_config_dir(&e), Some(PathBuf::from("/x/cfg/GabeTeX")));
+        }
         let e = env_of(&[("HOME", "/home/u")]);
         assert_eq!(linux_config_dir(&e), Some(PathBuf::from("/home/u/.config/GabeTeX")));
         // A relative XDG_CONFIG_HOME is ignored (XDG spec).
@@ -1347,7 +1350,7 @@ mod tests {
         assert!(chapters.is_dir);
         assert_eq!(names(chapters.children.as_ref().unwrap()), ["a.tex", "b.tex"]);
         let all: Vec<&str> = scan.files.iter().map(|s| s.as_str()).collect();
-        assert!(all.iter().any(|f| f.ends_with("chapters/a.tex")) && all.iter().any(|f| f.ends_with("refs.bib")));
+        assert!(all.iter().any(|f| Path::new(f).ends_with(Path::new("chapters").join("a.tex"))) && all.iter().any(|f| f.ends_with("refs.bib")));
         assert!(!all.iter().any(|f| f.contains(".git") || f.contains("node_modules") || f.ends_with(".aux") || f.ends_with(".gz")));
         assert_eq!(
             serde_json::to_string(&list_files(dir.to_str().unwrap())).unwrap(),
