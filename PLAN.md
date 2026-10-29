@@ -17,7 +17,7 @@ same app, version **1.0.0**, that looks and behaves as close to the Mac app as p
 - Localization: English + Brazilian Portuguese, following the OS language; strings come from
   `Resources/pt-BR.lproj/Localizable.strings` converted to `CrossPlatform/src/i18n/{en,pt-BR}.json`.
 - Packaging: Linux `.AppImage` + `.deb`, Windows NSIS `.exe` (+ `.msi`). Release assets named
-  `GabeTeX-1.0.0-linux-x86_64.AppImage`, `GabeTeX-1.0.0-linux-amd64.deb`, `GabeTeX-1.0.0-windows-x64-setup.exe`.
+  `GabeTeX-linux-x86_64.AppImage`, `GabeTeX-linux-amd64.deb`, `GabeTeX-windows-x64-setup.exe`.
 - CI: `.github/workflows/cross-platform.yml` (ubuntu-22.04 + windows-latest: `cargo test`, `npm run build`,
   `tauri build`; uploads installers; attaches them to the GitHub release on `v*` tags).
 
