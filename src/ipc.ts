@@ -3,7 +3,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-export type Encoding = "utf-8" | "latin-1";
+/** Files with a BOM keep it: "utf-8-bom", "utf-16le", "utf-16be" are returned by readFile and accepted by writeFile. */
+export type Encoding = "utf-8" | "latin-1" | "utf-8-bom" | "utf-16le" | "utf-16be";
 export type Engine = "pdflatex" | "xelatex" | "lualatex";
 export type Severity = "error" | "warning" | "info";
 export type DiagnosticSource = "latex" | "bibtex" | "chktex" | "reference" | "structure";
@@ -14,6 +15,9 @@ export interface FileContent { text: string; encoding: Encoding }
 
 export interface Diagnostic {
   severity: Severity; message: string; path: string; line: number; column?: number; source: DiagnosticSource;
+  /** Multi-line TeX context (`l.12 ...`). */ detail?: string;
+  /** Length in UTF-16 units of the span starting at `column`. */ length?: number;
+  /** File TeX could not find (e.g. `tikz-cd.sty`); offer a package install. */ missingFile?: string;
 }
 export interface OutlineItem { level: number; title: string; path: string; line: number; label?: string }
 export interface Label { name: string; path: string; line: number }
@@ -30,6 +34,12 @@ export interface CompletionItem { label: string; kind: CompletionKind; detail?: 
 export interface TeXDistribution { name: string; binDir: string; latexmk: boolean; tlmgr: boolean; synctex: boolean }
 export interface CompileResult {
   ok: boolean; pdfPath?: string; diagnostics: Diagnostic[]; missingPackages: string[]; durationMs: number; logPath?: string;
+}
+/** `complete`: items plus the document range (UTF-16 offsets) they replace. */
+export interface CompletionResponse {
+  from: number; to: number; prefix: string;
+  context: "command" | "environment" | "endEnvironment" | "label" | "citation" | "package" | "file";
+  inMath: boolean; items: CompletionItem[];
 }
 export interface SyncBox { page: number; x: number; y: number; width: number; height: number }
 export interface InverseResult { path: string; line: number; column?: number }
@@ -54,9 +64,12 @@ export const projectIndex = (root: string, overrides: Overrides = {}) =>
   invoke<ProjectIndex>("project_index", { root, overrides });
 export const completions = (root: string, path: string, text: string, line: number, column: number) =>
   invoke<CompletionItem[]>("completions", { root, path, text, line, column });
+export const complete = (root: string, path: string, text: string, line: number, column: number) =>
+  invoke<CompletionResponse | null>("complete", { root, path, text, line, column });
 export const detectTex = () => invoke<TeXDistribution | null>("detect_tex", {});
 export const compile = (root: string, rootFile: string, engine?: Engine, overrides: Overrides = {}) =>
   invoke<CompileResult>("compile", { root, rootFile, engine, overrides });
+export const cancelCompile = (root: string) => invoke<void>("cancel_compile", { root });
 export const synctexForward = (pdfPath: string, texPath: string, line: number, column: number) =>
   invoke<SyncBox[]>("synctex_forward", { pdfPath, texPath, line, column });
 export const synctexInverse = (pdfPath: string, page: number, x: number, y: number) =>

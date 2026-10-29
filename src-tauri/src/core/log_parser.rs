@@ -92,6 +92,9 @@ impl LogDiagnostic {
             path: self.path.clone().unwrap_or_default(),
             line: self.line.unwrap_or(0),
             column: self.column,
+            detail: self.detail.clone(),
+            length: self.length,
+            missing_file: self.missing_file.clone(),
             source: match self.source {
                 Source::Tex | Source::Latexmk | Source::Makeindex => "latex",
                 Source::Bibtex | Source::Biber => "bibtex",
